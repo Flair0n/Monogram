@@ -14,8 +14,17 @@ type View = 'hero' | 'login' | 'dashboard' | 'space' | 'curator' | 'editor' | 'n
 export default function App() {
   const [currentView, setCurrentView] = useState<View>('hero');
   const [currentSpaceId, setCurrentSpaceId] = useState<string>('1');
+  const [showWelcome, setShowWelcome] = useState(false);
 
   const handleNavigate = (view: string, spaceId?: string) => {
+    console.log('Navigating from', currentView, 'to', view);
+    
+    // Show welcome message when navigating to dashboard from login
+    if (view === 'dashboard' && currentView === 'login') {
+      console.log('Setting showWelcome to true');
+      setShowWelcome(true);
+    }
+    
     setCurrentView(view as View);
     if (spaceId) {
       setCurrentSpaceId(spaceId);
@@ -29,7 +38,7 @@ export default function App() {
       case 'login':
         return <LoginPage onNavigate={handleNavigate} />;
       case 'dashboard':
-        return <Dashboard onNavigate={handleNavigate} />;
+        return <Dashboard onNavigate={handleNavigate} showWelcome={showWelcome} onWelcomeClose={() => setShowWelcome(false)} />;
       case 'space':
         return <SpaceOverview onNavigate={handleNavigate} spaceId={currentSpaceId} />;
       case 'curator':
