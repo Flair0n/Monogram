@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { HeroPage } from './components/HeroPage';
+import { LoginPage } from './components/LoginPage';
 import { Dashboard } from './components/Dashboard';
 import { SpaceOverview } from './components/SpaceOverview';
 import { CuratorPanel } from './components/CuratorPanel';
@@ -7,10 +9,10 @@ import { NewsletterPage } from './components/NewsletterPage';
 import { MembersPage } from './components/MembersPage';
 import { SettingsPage } from './components/SettingsPage';
 
-type View = 'dashboard' | 'space' | 'curator' | 'editor' | 'newsletter' | 'members' | 'settings';
+type View = 'hero' | 'login' | 'dashboard' | 'space' | 'curator' | 'editor' | 'newsletter' | 'members' | 'settings';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<View>('dashboard');
+  const [currentView, setCurrentView] = useState<View>('hero');
   const [currentSpaceId, setCurrentSpaceId] = useState<string>('1');
 
   const handleNavigate = (view: string, spaceId?: string) => {
@@ -22,6 +24,10 @@ export default function App() {
 
   const renderView = () => {
     switch (currentView) {
+      case 'hero':
+        return <HeroPage onNavigate={handleNavigate} />;
+      case 'login':
+        return <LoginPage onNavigate={handleNavigate} />;
       case 'dashboard':
         return <Dashboard onNavigate={handleNavigate} />;
       case 'space':
@@ -37,7 +43,7 @@ export default function App() {
       case 'settings':
         return <SettingsPage onNavigate={handleNavigate} />;
       default:
-        return <Dashboard onNavigate={handleNavigate} />;
+        return <HeroPage onNavigate={handleNavigate} />;
     }
   };
 
