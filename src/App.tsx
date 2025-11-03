@@ -1,64 +1,78 @@
-import { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import { SpaceProvider } from './contexts/SpaceContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
 import { HeroPage } from './components/HeroPage';
 import { LoginPage } from './components/LoginPage';
 import { Dashboard } from './components/Dashboard';
 import { SpaceOverview } from './components/SpaceOverview';
-import { CuratorPanel } from './components/CuratorPanel';
-import { ResponseEditor } from './components/ResponseEditor';
-import { NewsletterPage } from './components/NewsletterPage';
-import { MembersPage } from './components/MembersPage';
+import { SpaceDashboard } from './components/SpaceDashboard';
 import { SettingsPage } from './components/SettingsPage';
-
-type View = 'hero' | 'login' | 'dashboard' | 'space' | 'curator' | 'editor' | 'newsletter' | 'members' | 'settings';
+import { SpaceSettingsPage } from './components/SpaceSettingsPage';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<View>('hero');
-  const [currentSpaceId, setCurrentSpaceId] = useState<string>('1');
-  const [showWelcome, setShowWelcome] = useState(false);
-
-  const handleNavigate = (view: string, spaceId?: string) => {
-    console.log('Navigating from', currentView, 'to', view);
-    
-    // Show welcome message when navigating to dashboard from login
-    if (view === 'dashboard' && currentView === 'login') {
-      console.log('Setting showWelcome to true');
-      setShowWelcome(true);
-    }
-    
-    setCurrentView(view as View);
-    if (spaceId) {
-      setCurrentSpaceId(spaceId);
-    }
-  };
-
-  const renderView = () => {
-    switch (currentView) {
-      case 'hero':
-        return <HeroPage onNavigate={handleNavigate} />;
-      case 'login':
-        return <LoginPage onNavigate={handleNavigate} />;
-      case 'dashboard':
-        return <Dashboard onNavigate={handleNavigate} showWelcome={showWelcome} onWelcomeClose={() => setShowWelcome(false)} />;
-      case 'space':
-        return <SpaceOverview onNavigate={handleNavigate} spaceId={currentSpaceId} />;
-      case 'curator':
-        return <CuratorPanel onNavigate={handleNavigate} />;
-      case 'editor':
-        return <ResponseEditor onNavigate={handleNavigate} />;
-      case 'newsletter':
-        return <NewsletterPage onNavigate={handleNavigate} />;
-      case 'members':
-        return <MembersPage onNavigate={handleNavigate} />;
-      case 'settings':
-        return <SettingsPage onNavigate={handleNavigate} />;
-      default:
-        return <HeroPage onNavigate={handleNavigate} />;
-    }
-  };
-
   return (
-    <div className="min-h-screen">
-      {renderView()}
-    </div>
+    <BrowserRouter>
+      <AuthProvider>
+        <SpaceProvider>
+          <div className="min-h-screen">
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<HeroPage />} />
+              <Route path="/login" element={<LoginPage />} />
+
+              {/* Protected Routes */}
+              <Route 
+                path="/dashboard" 
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              {/* Global Settings */}
+              <Route 
+                path="/settings" 
+                element={
+                  <ProtectedRoute>
+                    <SettingsPage />
+                  </ProtectedRoute>
+                } 
+              />
+
+              {/* Space Routes */}
+              <Route 
+                path="/spaces/:spaceId" 
+                element={
+                  <ProtectedRoute>
+                    <SpaceOverview />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/spaces/:spaceId/dashboard" 
+                element={
+                  <ProtectedRoute>
+                    <SpaceDashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/spaces/:spaceId/settings" 
+                element={
+                  <ProtectedRoute>
+                    <SpaceSettingsPage />
+                  </ProtectedRoute>
+                } 
+              />
+
+              {/* Catch all - redirect to home */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
+        </SpaceProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }

@@ -1,16 +1,16 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Card } from "./ui/card";
 import { Separator } from "./ui/separator";
 import { Edit3, ArrowLeft, Mail, Lock } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
 
-interface LoginPageProps {
-  onNavigate: (view: string) => void;
-}
-
-export function LoginPage({ onNavigate }: LoginPageProps) {
+export function LoginPage() {
+  const navigate = useNavigate();
+  const { login } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,18 +20,18 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
     if (e) {
       e.preventDefault();
     }
-    // Simulate login/signup
-    console.log('Navigating to dashboard');
-    onNavigate('dashboard');
+    // Mock login/signup
+    login(email, password);
+    navigate('/dashboard');
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col page-transition">
       {/* Header */}
       <nav className="border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto px-8 py-4 flex items-center justify-between">
           <button 
-            onClick={() => onNavigate('hero')}
+            onClick={() => navigate('/')}
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           >
             <Edit3 className="w-6 h-6" />
@@ -39,7 +39,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
           </button>
           <Button 
             variant="ghost" 
-            onClick={() => onNavigate('hero')}
+            onClick={() => navigate('/')}
             className="gap-2"
           >
             <ArrowLeft className="w-4 h-4" />

@@ -1,34 +1,35 @@
+import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 import { Separator } from "./ui/separator";
-import { ArrowLeft, Users, Download, Trash2, Bell } from "lucide-react";
+import { ArrowLeft, Users, Download, Trash2, Bell, User } from "lucide-react";
+import { MainLayout } from "./layouts/MainLayout";
+import { useAuth } from "../contexts/AuthContext";
 
-interface SettingsPageProps {
-  onNavigate: (view: string) => void;
-}
+export function SettingsPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
-export function SettingsPage({ onNavigate }: SettingsPageProps) {
   return (
-    <div className="min-h-screen p-8 md:p-16">
-      <div className="max-w-3xl mx-auto">
-        <Button
-          variant="ghost"
-          className="mb-8 -ml-4"
-          onClick={() => onNavigate('space')}
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Space
-        </Button>
+    <MainLayout>
+      <div className="min-h-[calc(100vh-4rem)] p-8 md:p-16 page-transition">
+        <div className="max-w-3xl mx-auto">
+          <Button
+            variant="ghost"
+            className="mb-8 -ml-4"
+            onClick={() => navigate('/dashboard')}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Dashboard
+          </Button>
 
-        <div className="mb-8">
-          <h1 className="mb-2">Settings</h1>
-          <p className="text-muted-foreground">Manage your space preferences</p>
-        </div>
-
-        <div className="space-y-6">
+          <div className="mb-8">
+            <h1 className="mb-2">App Settings</h1>
+            <p className="text-muted-foreground">Manage your account and global preferences</p>
+          </div>        <div className="space-y-6">
           {/* Space Details */}
           <Card className="p-6 paper-texture">
             <h3 className="mb-6">Space Details</h3>
@@ -210,12 +211,13 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
           {/* Save Button */}
           <div className="flex gap-3">
             <Button className="flex-1">Save Changes</Button>
-            <Button variant="outline" onClick={() => onNavigate('space')}>
+            <Button variant="outline" onClick={() => navigate('/dashboard')}>
               Cancel
             </Button>
           </div>
         </div>
       </div>
     </div>
+    </MainLayout>
   );
 }

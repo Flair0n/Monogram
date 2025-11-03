@@ -1,14 +1,12 @@
+import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Edit3, Users, Mail, Calendar, Feather, BookOpen, PenLine } from "lucide-react";
 
-interface HeroPageProps {
-  onNavigate: (view: string) => void;
-}
-
-export function HeroPage({ onNavigate }: HeroPageProps) {
+export function HeroPage() {
+  const navigate = useNavigate();
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen page-transition">
       {/* Navigation */}
       <nav className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-8 py-4 flex items-center justify-between">
@@ -16,7 +14,7 @@ export function HeroPage({ onNavigate }: HeroPageProps) {
             <Edit3 className="w-6 h-6" />
             <span className="text-xl">Monogram</span>
           </div>
-          <Button variant="outline" onClick={() => onNavigate('login')}>
+          <Button variant="outline" onClick={() => navigate('/login')}>
             Sign In
           </Button>
         </div>
@@ -44,7 +42,7 @@ export function HeroPage({ onNavigate }: HeroPageProps) {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            <Button size="lg" onClick={() => onNavigate('login')} className="gap-2">
+            <Button size="lg" onClick={() => navigate('/login')} className="gap-2">
               <PenLine className="w-5 h-5" />
               Start Writing
             </Button>
@@ -178,7 +176,7 @@ export function HeroPage({ onNavigate }: HeroPageProps) {
           <p className="text-xl text-muted-foreground mb-8">
             Create your first space in minutes. No credit card required.
           </p>
-          <Button size="lg" onClick={() => onNavigate('login')} className="gap-2">
+          <Button size="lg" onClick={() => navigate('/login')} className="gap-2">
             <Users className="w-5 h-5" />
             Create Your Space
           </Button>
