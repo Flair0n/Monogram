@@ -8,6 +8,8 @@ import { Separator } from "../components/ui/separator";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
+import { Label } from "../components/ui/label";
 import { 
   Home, 
   Calendar, 
@@ -22,7 +24,10 @@ import {
   PenLine,
   Edit2,
   Check,
-  X
+  X,
+  Copy,
+  Send,
+  UserPlus
 } from "lucide-react";
 import { MainLayout } from "../components/layouts/MainLayout";
 import { useSpace } from "../contexts/SpaceContext";
@@ -75,6 +80,18 @@ const mockStats = {
   totalResponses: 47,
   badges: 3
 };
+
+// Initial members data
+const initialMembersData = [
+  { id: "1", name: "Emma Chen", role: "Curator", email: "emma@example.com", joinedDate: "Jan 2024", responsesCount: 18, avatar: "EC" },
+  { id: "2", name: "Marcus Williams", role: "Member", email: "marcus@example.com", joinedDate: "Jan 2024", responsesCount: 15, avatar: "MW" },
+  { id: "3", name: "Sofia Rodriguez", role: "Member", email: "sofia@example.com", joinedDate: "Feb 2024", responsesCount: 22, avatar: "SR" },
+  { id: "4", name: "You", role: "Member", email: "you@example.com", joinedDate: "Feb 2024", responsesCount: 12, avatar: "YO" },
+  { id: "5", name: "James Park", role: "Member", email: "james@example.com", joinedDate: "Feb 2024", responsesCount: 9, avatar: "JP" },
+  { id: "6", name: "Olivia Taylor", role: "Member", email: "olivia@example.com", joinedDate: "Mar 2024", responsesCount: 14, avatar: "OT" },
+  { id: "7", name: "Daniel Kim", role: "Member", email: "daniel@example.com", joinedDate: "Mar 2024", responsesCount: 11, avatar: "DK" },
+  { id: "8", name: "Sarah Johnson", role: "Member", email: "sarah@example.com", joinedDate: "Mar 2024", responsesCount: 8, avatar: "SJ" }
+];
 
 // Mock responses data with editable content
 const mockResponsesData = [
@@ -198,6 +215,15 @@ export function SpaceDashboard() {
   
   // Archive state
   const [expandedWeek, setExpandedWeek] = useState<number | null>(null);
+  
+  // Invite members state
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteEmails, setInviteEmails] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [inviteSuccess, setInviteSuccess] = useState(false);
+  
+  // Members state
+  const [members, setMembers] = useState(initialMembersData);
 
   const currentSpace = mockSpacesData[spaceId || "1"] || mockSpacesData["1"];
 
@@ -287,6 +313,46 @@ export function SpaceDashboard() {
     setEditingResponseId(null);
     setEditedTitle("");
     setEditedContent("");
+  };
+
+  const handleSendInvites = () => {
+    // Parse emails from the textarea
+    const emailList = inviteEmails
+      .split(/[\n,]+/)
+      .map(email => email.trim())
+      .filter(email => email.length > 0 && email.includes('@'));
+    
+    if (emailList.length === 0) return;
+    
+    // Add new members to the list
+    const newMembers = emailList.map((email, index) => {
+      const nameParts = email.split('@')[0].split('.');
+      const name = nameParts.map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ') || email.split('@')[0];
+      const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+      
+      return {
+        id: `new-${Date.now()}-${index}`,
+        name: name,
+        role: "Member" as const,
+        email: email,
+        joinedDate: "Just now",
+        responsesCount: 0,
+        avatar: initials
+      };
+    });
+    
+    setMembers(prev => [...prev, ...newMembers]);
+    setInviteSuccess(true);
+    
+    setTimeout(() => {
+      setInviteDialogOpen(false);
+      setInviteEmails("");
+      setInviteMessage("");
+      setInviteSuccess(false);
+      
+      // Auto-switch to Members tab to show new members
+      setActiveNav("members");
+    }, 1500);
   };
 
   // Set current space context when component mounts
@@ -504,7 +570,7 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                                     <Button
                                       onClick={handlePublish}
                                       disabled={!reflectionContent.trim()}
-                                      className="gap-2 bg-black text-white hover:bg-black/90 disabled:opacity-40 shadow-md"
+                                      className="gap-2 bg-sage hover:bg-sage/90 text-cream disabled:opacity-40 shadow-md"
                                     >
                                       <Check className="w-4 h-4" strokeWidth={1.5} />
                                       Publish
@@ -613,7 +679,7 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                                   <Button
                                     size="sm"
                                     onClick={() => handleSaveResponse(response.id)}
-                                    className="gap-2 bg-black text-white hover:bg-black/90 shadow-sm"
+                                    className="gap-2 bg-sage hover:bg-sage/90 text-cream shadow-sm"
                                   >
                                     <Check className="w-4 h-4" strokeWidth={1.5} />
                                     Save
@@ -670,31 +736,38 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                   <div className="mb-8">
                     <h1 className="mb-2">Members</h1>
                     <p className="text-muted-foreground">
-                      8 active members in this space
+                      {members.length} active member{members.length !== 1 ? 's' : ''} in this space
                       <span className="cursor-blink inline-block ml-1">|</span>
                     </p>
                   </div>
 
                   <div className="space-y-3">
-                    {["Emma Chen", "Marcus Williams", "Sofia Rodriguez", "You", "James Park", "Olivia Taylor", "Daniel Kim", "Sarah Johnson"].map((member, index) => (
-                      <Card key={index} className="p-5 paper-texture">
+                    {members.map((member) => (
+                      <Card key={member.id} className="p-5 paper-texture">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-full bg-sage/10 flex items-center justify-center">
                               <span className="text-lg font-medium text-sage">
-                                {member.split(' ').map(n => n[0]).join('').toUpperCase()}
+                                {member.avatar}
                               </span>
                             </div>
                             <div>
-                              <p className="font-medium">{member}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium">{member.name}</p>
+                                {member.joinedDate === "Just now" && (
+                                  <Badge variant="default" className="text-xs bg-sage text-cream">
+                                    New
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="text-sm text-muted-foreground">
-                                {index === 0 ? "Curator" : index === 3 ? "You" : "Member"}
+                                {member.role} · Joined {member.joinedDate}
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
                             <Badge variant="secondary" className="text-xs">
-                              {Math.floor(Math.random() * 20) + 5} responses
+                              {member.responsesCount} response{member.responsesCount !== 1 ? 's' : ''}
                             </Badge>
                           </div>
                         </div>
@@ -702,8 +775,17 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                     ))}
                   </div>
 
-                  <Button className="w-full mt-6 gap-2">
-                    <Users className="w-4 h-4" />
+                  <Button 
+                    className="w-full mt-6 gap-2 bg-sage hover:bg-sage/90 text-cream"
+                    onClick={() => {
+                      setInviteDialogOpen(true);
+                      // Scroll to Quick Actions section
+                      setTimeout(() => {
+                        document.querySelector('.quick-actions-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }, 100);
+                    }}
+                  >
+                    <UserPlus className="w-4 h-4" />
                     Invite New Members
                   </Button>
                 </motion.div>
@@ -891,18 +973,123 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
           </Card>
 
           {/* Quick Actions */}
-          <Card className="mt-6 p-6 paper-texture bg-muted/30">
+          <Card className="mt-6 p-6 paper-texture bg-muted/30 quick-actions-section">
             <h4 className="mb-3 text-sm">Quick Actions</h4>
             <div className="space-y-2">
               <Button 
                 variant="outline" 
                 size="sm" 
                 className="w-full justify-start gap-2"
-                onClick={() => navigate(`/spaces/${spaceId}/members`)}
+                onClick={() => setInviteDialogOpen(!inviteDialogOpen)}
               >
-                <Users className="w-4 h-4" />
+                <UserPlus className="w-4 h-4" />
                 Invite Members
               </Button>
+              
+              {/* Inline Invite Form */}
+              <AnimatePresence>
+                {inviteDialogOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-4 space-y-4 border-t border-border/50 mt-2">
+                      {/* Success Message */}
+                      <AnimatePresence>
+                        {inviteSuccess && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            className="p-3 bg-green-50 border border-green-200 rounded-md flex items-center gap-2"
+                          >
+                            <Check className="w-4 h-4 text-green-600" />
+                            <span className="text-sm text-green-800">Invitations sent successfully!</span>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Share Link */}
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Share Link</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            readOnly
+                            value={`monogram.app/join/${currentSpace.id}`}
+                            className="text-xs"
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(`monogram.app/join/${currentSpace.id}`);
+                            }}
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Email Invites */}
+                      <div className="space-y-2">
+                        <Label htmlFor="invite-emails" className="text-xs text-muted-foreground">
+                          Email Addresses
+                        </Label>
+                        <Textarea
+                          id="invite-emails"
+                          placeholder="Enter email addresses (one per line or comma-separated)"
+                          value={inviteEmails}
+                          onChange={(e) => setInviteEmails(e.target.value)}
+                          className="min-h-[80px] text-xs resize-none"
+                        />
+                      </div>
+
+                      {/* Personal Message */}
+                      <div className="space-y-2">
+                        <Label htmlFor="invite-message" className="text-xs text-muted-foreground">
+                          Personal Message (Optional)
+                        </Label>
+                        <Textarea
+                          id="invite-message"
+                          placeholder="Add a personal note to your invitation..."
+                          value={inviteMessage}
+                          onChange={(e) => setInviteMessage(e.target.value)}
+                          className="min-h-[60px] text-xs resize-none"
+                        />
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setInviteDialogOpen(false);
+                            setInviteEmails("");
+                            setInviteMessage("");
+                            setInviteSuccess(false);
+                          }}
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleSendInvites}
+                          disabled={!inviteEmails.trim()}
+                          className="flex-1 bg-sage text-cream hover:bg-sage/90"
+                        >
+                          <Send className="w-3 h-3 mr-2" />
+                          Send Invites
+                        </Button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -936,7 +1123,7 @@ function NavItem({
       onClick={onClick}
       className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-all duration-200 ${
         active 
-          ? 'bg-black text-white' 
+          ? 'bg-sage text-cream' 
           : 'hover:bg-muted text-foreground'
       }`}
     >
