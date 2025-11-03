@@ -5,6 +5,8 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { HeroPage } from './components/HeroPage';
 import { LoginPage } from './components/LoginPage';
 import { Dashboard } from './components/Dashboard';
+import { ProfilePage } from './components/ProfilePage';
+import { EditProfilePage } from './components/EditProfilePage';
 import { SpaceOverview } from './components/SpaceOverview';
 import { SpaceDashboard } from './components/SpaceDashboard';
 import { SettingsPage } from './components/SettingsPage';
@@ -27,6 +29,24 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <Dashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              {/* Profile Routes */}
+              <Route 
+                path="/profile" 
+                element={
+                  <ProtectedRoute>
+                    <ProfilePage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/profile/edit" 
+                element={
+                  <ProtectedRoute>
+                    <EditProfilePage />
                   </ProtectedRoute>
                 } 
               />

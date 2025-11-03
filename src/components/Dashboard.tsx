@@ -2,13 +2,16 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { Separator } from "./ui/separator";
 import { 
   Plus,
   Users,
   Calendar,
   Mail,
   ChevronRight,
-  Feather
+  Feather,
+  Inbox,
+  UsersRound
 } from "lucide-react";
 import { MainLayout } from "./layouts/MainLayout";
 
@@ -57,24 +60,19 @@ export function Dashboard() {
   };
 
   return (
-    <MainLayout showStats={true} stats={stats}>
-      <div className="min-h-[calc(100vh-4rem)] px-8 py-12 page-transition">
-        <div className="max-w-6xl mx-auto">
-          {/* Header */}
-          <div className="mb-12 text-center">
-            <div className="inline-block mb-4">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-card">
-                <Feather className="w-4 h-4" />
-                <span className="text-sm">Your Writing Spaces</span>
-              </div>
+    <MainLayout>
+      <div className="page-transition">
+
+        {/* Spaces Section */}
+        <div className="px-8 py-16">
+          <div className="max-w-6xl mx-auto">
+            {/* Header */}
+            <div className="mb-12 text-center">
+              <h1 className="text-4xl font-medium mb-4 tracking-tight">Your Writing Spaces</h1>
+              <p className="text-foreground/60 max-w-2xl mx-auto leading-relaxed">
+                Choose a space to continue your journaling journey, or create a new one
+              </p>
             </div>
-            
-            <h1 className="text-4xl mb-4">Dashboard</h1>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Choose a space to continue your journaling journey, or create a new one
-              <span className="cursor-blink inline-block ml-1">|</span>
-            </p>
-          </div>
 
           {/* Spaces Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -146,6 +144,7 @@ export function Dashboard() {
                 Start a new journaling group with friends
               </p>
             </Card>
+          </div>
           </div>
         </div>
       </div>

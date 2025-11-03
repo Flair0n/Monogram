@@ -23,88 +23,73 @@ export function MainLayout({ children, showStats, stats }: MainLayoutProps) {
     if (path === '/dashboard') {
       return location.pathname === path;
     }
+    if (path === '/profile') {
+      return location.pathname.startsWith('/profile');
+    }
     return location.pathname.startsWith(path);
   };
 
-  // Determine settings label based on context
-  const settingsLabel = isInSpace ? 'Space Settings' : 'Settings';
+  // Determine settings path based on context
   const settingsPath = isInSpace 
     ? `/spaces/${currentSpace?.id}/settings` 
     : '/settings';
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header Navigation */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-8 py-3 flex items-center justify-between">
+    <div className="min-h-screen flex flex-col bg-[#FFFBF5]">
+      {/* Header Navigation - Enhanced height and spacing */}
+      <header className="border-b border-black/10 bg-white/80 backdrop-blur-sm sticky top-0 z-50 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          {/* Spacer for centering on desktop */}
+          <div className="flex-1 hidden md:block"></div>
+
+          {/* Center: Logo - Larger with tighter tracking */}
           <Link 
             to="/dashboard" 
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2.5 md:gap-3 hover:opacity-70 transition-opacity duration-300"
           >
-            <Edit3 className="w-6 h-6" />
-            <span className="text-xl">Monogram</span>
+            <Edit3 className="w-6 h-6 md:w-7 md:h-7" strokeWidth={1.5} />
+            <span className="text-2xl md:text-[28px] font-medium tracking-tighter">Monogram</span>
           </Link>
 
-          <nav className="flex items-center gap-6">
+          {/* Right: Navigation Icons + Space Badge + User Avatar */}
+          <nav className="flex-1 flex items-center justify-end gap-4 md:gap-8">
             {isInSpace && currentSpace && (
               <>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">Space:</span>
+                <div className="hidden lg:flex items-center gap-2 text-sm px-3 py-1.5 rounded-md bg-sage/5 border border-sage/20">
+                  <span className="text-foreground/60">Space:</span>
                   <span className="font-medium">{currentSpace.name}</span>
                 </div>
-                <Separator orientation="vertical" className="h-6" />
+                <Separator orientation="vertical" className="hidden lg:block h-6 bg-black/10" />
               </>
             )}
 
             <Link
               to="/dashboard"
-              className={`flex items-center gap-2 text-sm transition-colors ${
-                isActive('/dashboard') ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+              className={`p-2 md:p-2.5 rounded-lg transition-all duration-250 ${
+                isActive('/dashboard') 
+                  ? 'bg-sage/10 text-sage' 
+                  : 'text-foreground/40 hover:text-foreground/70 hover:bg-black/5'
               }`}
+              title="Dashboard"
             >
-              <LayoutDashboard className="w-4 h-4" />
-              Dashboard
+              <LayoutDashboard className="w-5 h-5" strokeWidth={1.5} />
             </Link>
 
             <Link
               to={settingsPath}
-              className={`flex items-center gap-2 text-sm transition-colors ${
+              className={`p-2 md:p-2.5 rounded-lg transition-all duration-250 ${
                 isActive('/settings') || isActive(`/spaces/${currentSpace?.id}/settings`) 
-                  ? 'text-foreground' 
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-sage/10 text-sage' 
+                  : 'text-foreground/40 hover:text-foreground/70 hover:bg-black/5'
               }`}
+              title="Settings"
             >
-              <Settings className="w-4 h-4" />
-              {settingsLabel}
+              <Settings className="w-5 h-5" strokeWidth={1.5} />
             </Link>
-
-            <Separator orientation="vertical" className="h-6" />
 
             <ProfileHeader />
           </nav>
         </div>
-
-        {/* Global Stats Bar */}
-        {showStats && stats && (
-          <div className="border-t border-border bg-muted/30">
-            <div className="max-w-6xl mx-auto px-8 py-3 flex items-center justify-around">
-              <div className="text-center">
-                <p className="text-2xl font-medium">{stats.activeSpaces}</p>
-                <p className="text-xs text-muted-foreground">Active Spaces</p>
-              </div>
-              <Separator orientation="vertical" className="h-10" />
-              <div className="text-center">
-                <p className="text-2xl font-medium">{stats.unreadUpdates}</p>
-                <p className="text-xs text-muted-foreground">Unread Updates</p>
-              </div>
-              <Separator orientation="vertical" className="h-10" />
-              <div className="text-center">
-                <p className="text-2xl font-medium">{stats.totalCommunity}</p>
-                <p className="text-xs text-muted-foreground">Total Community</p>
-              </div>
-            </div>
-          </div>
-        )}
       </header>
 
       {/* Main Content */}

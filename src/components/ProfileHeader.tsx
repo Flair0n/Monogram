@@ -1,7 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { Button } from "./ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,12 +8,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { User, Settings, LogOut, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Settings, User, LogOut } from "lucide-react";
 
 export function ProfileHeader() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -32,40 +30,64 @@ export function ProfileHeader() {
       .slice(0, 2);
   };
 
+  const isActive = (path: string) => {
+    if (path === '/profile') {
+      return location.pathname.startsWith('/profile');
+    }
+    return location.pathname === path;
+  };
+
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="gap-2 h-auto py-2">
-          <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
-            <span className="text-sm text-accent-foreground">
+        <button 
+          className={`h-auto p-0 rounded-full hover:opacity-80 transition-opacity duration-250 focus:outline-none ${
+            isActive('/profile') ? 'ring-2 ring-sage/30' : ''
+          }`}
+        >
+          <div className="w-10 h-10 rounded-full bg-sage/10 border-2 border-sage/20 flex items-center justify-center hover:border-sage/40 transition-colors duration-250">
+            <span className="text-sm font-medium text-sage tracking-tight">
               {user ? getInitials(user.name) : 'U'}
             </span>
           </div>
-          <span className="text-sm">{user?.name || 'User'}</span>
-          <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-        </Button>
+        </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>
-          <div className="flex flex-col">
-            <span className="font-normal">{user?.name}</span>
-            <span className="text-xs text-muted-foreground">{user?.email}</span>
+      <DropdownMenuContent align="end" className="w-72 mt-2 z-[100] p-2" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
+        <DropdownMenuLabel className="py-4 px-3">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-sage/10 border-2 border-sage/20 flex items-center justify-center">
+              <span className="text-base font-medium text-sage tracking-tight">
+                {user ? getInitials(user.name) : 'U'}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="font-medium text-base">{user?.name}</span>
+              <span className="text-sm text-muted-foreground font-normal">{user?.email}</span>
+            </div>
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate('/profile')}>
-          <User className="w-4 h-4 mr-2" />
-          Profile
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate('/settings')}>
-          <Settings className="w-4 h-4 mr-2" />
-          Settings
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout}>
-          <LogOut className="w-4 h-4 mr-2" />
-          Logout
-        </DropdownMenuItem>
+        <DropdownMenuSeparator className="my-2" />
+        <div className="py-1 space-y-1">
+          <DropdownMenuItem onClick={() => navigate('/dashboard')} className="py-3 px-3 cursor-pointer">
+            <LayoutDashboard className="w-4 h-4 mr-3" strokeWidth={1.5} />
+            Dashboard
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate('/settings')} className="py-3 px-3 cursor-pointer">
+            <Settings className="w-4 h-4 mr-3" strokeWidth={1.5} />
+            Settings
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate('/profile')} className="py-3 px-3 cursor-pointer">
+            <User className="w-4 h-4 mr-3" strokeWidth={1.5} />
+            Profile
+          </DropdownMenuItem>
+        </div>
+        <DropdownMenuSeparator className="my-2" />
+        <div className="py-1">
+          <DropdownMenuItem onClick={handleLogout} className="py-3 px-3 cursor-pointer text-destructive focus:text-destructive">
+            <LogOut className="w-4 h-4 mr-3" strokeWidth={1.5} />
+            Logout
+          </DropdownMenuItem>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
