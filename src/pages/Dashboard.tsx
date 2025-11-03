@@ -1,8 +1,8 @@
 import { useNavigate } from "react-router-dom";
-import { Card } from "./ui/card";
-import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
-import { Separator } from "./ui/separator";
+import { Card } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/badge";
+import { Separator } from "../components/ui/separator";
 import { 
   Plus,
   Users,
@@ -13,7 +13,14 @@ import {
   Inbox,
   UsersRound
 } from "lucide-react";
-import { MainLayout } from "./layouts/MainLayout";
+import { MainLayout } from "../components/layouts/MainLayout";
+import { usePermission } from "../components/permissions";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../components/ui/tooltip";
 
 // Mock data - replace with Supabase later
 const mockSpaces = [
@@ -51,12 +58,19 @@ const mockSpaces = [
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const { allowed: canCreate, message: createMessage } = usePermission('canCreateSpace');
 
   // Calculate global stats
   const stats = {
     activeSpaces: mockSpaces.length,
     unreadUpdates: mockSpaces.reduce((acc, space) => acc + space.unreadResponses, 0),
     totalCommunity: mockSpaces.reduce((acc, space) => acc + space.memberCount, 0),
+  };
+
+  const handleCreateSpace = () => {
+    if (!canCreate) return;
+    // Navigate to create space flow - implement later
+    alert("Create Space feature coming soon!");
   };
 
   return (
@@ -127,23 +141,46 @@ export function Dashboard() {
             ))}
 
             {/* Create New Space Card */}
-            <Card
-              className="p-6 paper-texture cursor-pointer hover:shadow-lg transition-all border-dashed border-2 flex flex-col items-center justify-center min-h-[300px] group"
-              onClick={() => {
-                // Navigate to create space flow - implement later
-                alert("Create Space feature coming soon!");
-              }}
-            >
-              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                <Plus className="w-6 h-6" />
-              </div>
-              <h3 className="mb-2 group-hover:text-primary transition-colors">
-                Create New Space
-              </h3>
-              <p className="text-sm text-muted-foreground text-center">
-                Start a new journaling group with friends
-              </p>
-            </Card>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Card
+                    className={`p-6 paper-texture transition-all border-dashed border-2 flex flex-col items-center justify-center min-h-[300px] group ${
+                      canCreate 
+                        ? 'cursor-pointer hover:shadow-lg' 
+                        : 'opacity-40 cursor-not-allowed bg-terracotta/10 border-terracotta/30'
+                    }`}
+                    onClick={handleCreateSpace}
+                  >
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 transition-colors ${
+                      canCreate 
+                        ? 'bg-muted group-hover:bg-primary group-hover:text-primary-foreground' 
+                        : 'bg-terracotta/20 text-terracotta/60'
+                    }`}>
+                      <Plus className="w-6 h-6" />
+                    </div>
+                    <h3 className={`mb-2 transition-colors ${
+                      canCreate ? 'group-hover:text-primary' : 'text-terracotta/60'
+                    }`}>
+                      Create New Space
+                    </h3>
+                    <p className={`text-sm text-center ${
+                      canCreate ? 'text-muted-foreground' : 'text-terracotta/60'
+                    }`}>
+                      Start a new journaling group with friends
+                    </p>
+                  </Card>
+                </TooltipTrigger>
+                {!canCreate && (
+                  <TooltipContent 
+                    side="top" 
+                    className="bg-terracotta/90 text-white border-terracotta text-xs"
+                  >
+                    <p>{createMessage}</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           </div>
           </div>
         </div>

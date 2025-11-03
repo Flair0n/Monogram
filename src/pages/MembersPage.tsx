@@ -1,6 +1,6 @@
-import { Button } from "./ui/button";
-import { Card } from "./ui/card";
-import { Badge } from "./ui/badge";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
 import { ArrowLeft, Crown, Flame, Mail, Calendar } from "lucide-react";
 
 interface MembersPageProps {

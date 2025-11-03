@@ -1,13 +1,13 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
-import { Button } from "./ui/button";
-import { Card } from "./ui/card";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Switch } from "./ui/switch";
-import { Separator } from "./ui/separator";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Switch } from "../components/ui/switch";
+import { Separator } from "../components/ui/separator";
 import { ArrowLeft, Users, Download, Trash2, Bell } from "lucide-react";
-import { MainLayout } from "./layouts/MainLayout";
+import { MainLayout } from "../components/layouts/MainLayout";
 import { useSpace } from "../contexts/SpaceContext";
 
 export function SpaceSettingsPage() {

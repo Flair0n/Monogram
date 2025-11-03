@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "./ui/button";
-import { Card } from "./ui/card";
-import { Switch } from "./ui/switch";
-import { Separator } from "./ui/separator";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/card";
+import { Switch } from "../components/ui/switch";
+import { Separator } from "../components/ui/separator";
 import { Bell, Palette, Eye, Trash2, AlertCircle, Check, Globe, Shield } from "lucide-react";
-import { MainLayout } from "./layouts/MainLayout";
+import { MainLayout } from "../components/layouts/MainLayout";
 import { useAuth } from "../contexts/AuthContext";
 import {
   Select,
@@ -13,7 +13,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "./ui/select";
+} from "../components/ui/select";
 
 type SettingCategory = 'appearance' | 'notifications' | 'privacy' | 'preferences' | 'account';
 

@@ -1,16 +1,16 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { SpaceProvider } from './contexts/SpaceContext';
-import { ProtectedRoute } from './components/ProtectedRoute';
-import { HeroPage } from './components/HeroPage';
-import { LoginPage } from './components/LoginPage';
-import { Dashboard } from './components/Dashboard';
-import { ProfilePage } from './components/ProfilePage';
-import { EditProfilePage } from './components/EditProfilePage';
-import { SpaceOverview } from './components/SpaceOverview';
-import { SpaceDashboard } from './components/SpaceDashboard';
-import { SettingsPage } from './components/SettingsPage';
-import { SpaceSettingsPage } from './components/SpaceSettingsPage';
+import { ProtectedRoute } from './routes/ProtectedRoute';
+import { HeroPage } from './pages/HeroPage';
+import { LoginPage } from './pages/LoginPage';
+import { Dashboard } from './pages/Dashboard';
+import { ProfilePage } from './pages/ProfilePage';
+import { EditProfilePage } from './pages/EditProfilePage';
+import { SpaceOverview } from './pages/SpaceOverview';
+import { SpaceDashboard } from './pages/SpaceDashboard';
+import { SettingsPage } from './pages/SettingsPage';
+import { SpaceSettingsPage } from './pages/SpaceSettingsPage';
 
 export default function App() {
   return (

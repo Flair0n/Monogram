@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { MainLayout } from './layouts/MainLayout';
-import { Card } from './ui/card';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Separator } from './ui/separator';
-import { Badge } from './ui/badge';
+import { MainLayout } from '../components/layouts/MainLayout';
+import { Card } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Separator } from '../components/ui/separator';
+import { Badge } from '../components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { 
   Mail, 
