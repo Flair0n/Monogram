@@ -11,7 +11,7 @@ import {
   Mail, 
   Calendar, 
   Edit3, 
-  Edit,
+  Edit2,
   Check,
   X,
   ChevronRight
@@ -83,14 +83,14 @@ export function ProfilePage() {
                     className="p-2 rounded-lg hover:bg-black/5 transition-colors"
                     title="Edit name"
                   >
-                    <Edit className="w-4 h-4 text-foreground/40 hover:text-foreground/70" strokeWidth={1.5} />
+                    <Edit2 className="w-4 h-4 text-foreground/40 hover:text-foreground/70" strokeWidth={1.5} />
                   </button>
                 </div>
               </div>
             )}
 
             {/* User Info */}
-            <div className="flex items-center justify-center gap-4 text-foreground/60 text-sm">
+            <div className="flex items-center justify-center gap-4 text-foreground/60 text-sm mb-6">
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4" strokeWidth={1.5} />
                 <span>{user?.email}</span>
@@ -100,6 +100,18 @@ export function ProfilePage() {
                 <Calendar className="w-4 h-4" strokeWidth={1.5} />
                 <span>Joined March 2024</span>
               </div>
+            </div>
+
+            {/* Edit Profile Button */}
+            <div>
+              <Button 
+                variant="outline" 
+                onClick={() => navigate('/profile/edit')}
+                className="gap-2"
+              >
+                <Edit2 className="w-4 h-4" strokeWidth={1.5} />
+                Edit Profile
+              </Button>
             </div>
           </div>
         </div>
