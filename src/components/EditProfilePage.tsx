@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from './layouts/MainLayout';
@@ -13,6 +13,7 @@ import { User, Mail, ArrowLeft, Save, X } from 'lucide-react';
 export function EditProfilePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Mock state - replace with actual form handling
   const [formData, setFormData] = useState({
@@ -21,6 +22,39 @@ export function EditProfilePage() {
     bio: '',
     location: '',
   });
+
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        alert('File size must be less than 2MB');
+        return;
+      }
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please upload an image file');
+        return;
+      }
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+
+      // TODO: Upload to backend/storage
+      console.log('Uploading avatar:', file);
+    }
+  };
 
   const handleSave = () => {
     // TODO: Implement save functionality with backend
@@ -52,21 +86,48 @@ export function EditProfilePage() {
         <div className="max-w-3xl mx-auto px-8 py-12">
           <Card className="p-8 border-black/10">
             {/* Profile Picture */}
-            <div className="text-center pb-8 border-b border-black/10">
-              <div className="inline-block mb-4">
-                <div className="w-32 h-32 rounded-full bg-sage/10 ring-4 ring-sage/30 ring-offset-4 ring-offset-white flex items-center justify-center">
-                  <span className="text-5xl font-medium text-sage tracking-tight">
-                    {formData.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                  </span>
+            <div className="pb-8 border-b border-black/10">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="hidden"
+              />
+              <div className="flex items-start gap-6">
+                <div className="flex-shrink-0 p-6 border-[5px] border-black/40 shadow-lg bg-transparent">
+                  <div className="w-40 h-40 bg-sage/10 flex items-center justify-center overflow-hidden relative">
+                    {avatarPreview ? (
+                      <img 
+                        src={avatarPreview} 
+                        alt="Avatar preview" 
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-5xl font-medium text-sage tracking-tight">
+                        {formData.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div>
-                <Button variant="outline" size="sm" className="mb-2">
-                  Change Avatar
-                </Button>
-                <p className="text-xs text-foreground/60">
-                  Upload a new profile picture (JPG, PNG, max 2MB)
-                </p>
+                <div className="flex-1 pt-4">
+                  <h3 className="text-lg font-medium mb-2 tracking-tight">Profile Picture</h3>
+                  <p className="text-sm text-foreground/60 mb-4">
+                    Upload Your Profile Picture
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleAvatarClick}
+                    type="button"
+                    className="mb-2"
+                  >
+                    Choose File
+                  </Button>
+                  <p className="text-xs text-foreground/60">
+                    JPG, PNG, max 2MB
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -95,10 +156,12 @@ export function EditProfilePage() {
                   id="email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="your.email@example.com"
-                  className="h-11"
+                  disabled
+                  className="h-11 bg-muted cursor-not-allowed"
                 />
+                <p className="text-xs text-foreground/60">
+                  Email address cannot be changed
+                </p>
               </div>
 
               <div className="space-y-2">

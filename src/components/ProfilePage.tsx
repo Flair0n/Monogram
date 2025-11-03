@@ -47,11 +47,13 @@ export function ProfilePage() {
         <div className="border-b border-black/10 bg-white/50">
           <div className="max-w-3xl mx-auto px-8 py-16 text-center">
             {/* Avatar */}
-            <div className="inline-block mb-6">
-              <div className="w-32 h-32 rounded-full bg-sage/10 ring-4 ring-sage/30 ring-offset-4 ring-offset-[#FFFBF5] flex items-center justify-center">
-                <span className="text-5xl font-medium text-sage tracking-tight">
-                  {user?.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                </span>
+            <div className="inline-block mb-6 relative z-10">
+              <div className="p-6 border-[5px] border-black/40 shadow-lg bg-transparent">
+                <div className="w-40 h-40 bg-sage/10 flex items-center justify-center">
+                  <span className="text-5xl font-medium text-sage tracking-tight">
+                    {user?.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                  </span>
+                </div>
               </div>
             </div>
 
