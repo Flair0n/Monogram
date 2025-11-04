@@ -28,7 +28,6 @@ export function TerminalSelector({
   const [showCursor, setShowCursor] = useState(true);
   const [typedText, setTypedText] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   // Find current option
   const currentOption = options.find((opt) => opt.value === value);
@@ -150,22 +149,11 @@ export function TerminalSelector({
     setTypedText("");
     if (!isOpen) {
       playClickSound();
-      // Focus input when opening
-      setTimeout(() => inputRef.current?.focus(), 0);
     }
   };
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
-      {/* Hidden input for typing */}
-      <input
-        ref={inputRef}
-        type="text"
-        className="sr-only"
-        aria-hidden="true"
-        tabIndex={-1}
-      />
-      
       {/* Terminal Input Line */}
       <button
         onClick={handleToggle}
