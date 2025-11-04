@@ -7,13 +7,7 @@ import { Separator } from "../components/ui/separator";
 import { Bell, Palette, Eye, Trash2, AlertCircle, Check, Globe, Shield } from "lucide-react";
 import { MainLayout } from "../components/layouts/MainLayout";
 import { useAuth } from "../contexts/AuthContext";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../components/ui/select";
+import { TerminalSelector } from "../components/ui/terminal-selector";
 
 type SettingCategory = 'appearance' | 'notifications' | 'privacy' | 'preferences' | 'account';
 
@@ -22,6 +16,11 @@ export function SettingsPage() {
   const { user } = useAuth();
   const [activeCategory, setActiveCategory] = useState<SettingCategory>('appearance');
   const [saved, setSaved] = useState(false);
+  
+  // Settings state
+  const [theme, setTheme] = useState('light');
+  const [profileVisibility, setProfileVisibility] = useState('spaces');
+  const [landingPage, setLandingPage] = useState('dashboard');
 
   const categories = [
     { id: 'appearance' as SettingCategory, label: 'Appearance', icon: Palette },
@@ -79,21 +78,22 @@ export function SettingsPage() {
                       <p className="text-foreground/60">Customize how Monogram looks</p>
                     </div>
                     <Separator className="bg-black/10" />
-                    <div className="flex items-center justify-between">
+                    <div className="space-y-4">
                       <div>
                         <p className="font-medium mb-1">Theme</p>
-                        <p className="text-sm text-foreground/60">Choose your color scheme</p>
+                        <p className="text-sm text-foreground/60 mb-3">Choose your color scheme</p>
                       </div>
-                      <Select defaultValue="light">
-                        <SelectTrigger className="w-40">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="light">Light</SelectItem>
-                          <SelectItem value="dark">Dark</SelectItem>
-                          <SelectItem value="system">System</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <TerminalSelector
+                        label="theme"
+                        options={[
+                          { value: 'light', label: 'Light' },
+                          { value: 'dark', label: 'Dark' },
+                          { value: 'system', label: 'System' },
+                        ]}
+                        value={theme}
+                        onChange={setTheme}
+                        className="max-w-md"
+                      />
                     </div>
                   </div>
                 )}
@@ -132,21 +132,22 @@ export function SettingsPage() {
                       <p className="text-foreground/60">Manage your privacy settings</p>
                     </div>
                     <Separator className="bg-black/10" />
-                    <div className="flex items-center justify-between">
+                    <div className="space-y-4">
                       <div>
                         <p className="font-medium mb-1">Profile Visibility</p>
-                        <p className="text-sm text-foreground/60">Who can see your profile</p>
+                        <p className="text-sm text-foreground/60 mb-3">Who can see your profile</p>
                       </div>
-                      <Select defaultValue="spaces">
-                        <SelectTrigger className="w-40">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="public">Public</SelectItem>
-                          <SelectItem value="spaces">Spaces Only</SelectItem>
-                          <SelectItem value="private">Private</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <TerminalSelector
+                        label="visibility"
+                        options={[
+                          { value: 'public', label: 'Public' },
+                          { value: 'spaces', label: 'Spaces Only' },
+                          { value: 'private', label: 'Private' },
+                        ]}
+                        value={profileVisibility}
+                        onChange={setProfileVisibility}
+                        className="max-w-md"
+                      />
                     </div>
                   </div>
                 )}
@@ -158,20 +159,21 @@ export function SettingsPage() {
                       <p className="text-foreground/60">Customize your experience</p>
                     </div>
                     <Separator className="bg-black/10" />
-                    <div className="flex items-center justify-between">
+                    <div className="space-y-4">
                       <div>
                         <p className="font-medium mb-1">Default Landing Page</p>
-                        <p className="text-sm text-foreground/60">Where to go after login</p>
+                        <p className="text-sm text-foreground/60 mb-3">Where to go after login</p>
                       </div>
-                      <Select defaultValue="dashboard">
-                        <SelectTrigger className="w-40">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="dashboard">Dashboard</SelectItem>
-                          <SelectItem value="last-space">Last Space</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <TerminalSelector
+                        label="landing"
+                        options={[
+                          { value: 'dashboard', label: 'Dashboard' },
+                          { value: 'last-space', label: 'Last Space' },
+                        ]}
+                        value={landingPage}
+                        onChange={setLandingPage}
+                        className="max-w-md"
+                      />
                     </div>
                   </div>
                 )}
