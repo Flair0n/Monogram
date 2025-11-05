@@ -2,6 +2,7 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { ArrowLeft, Heart, Sprout, Pencil, Download } from "lucide-react";
 import { useState } from "react";
+import { ExportWritings } from "../components/ExportWritings";
 
 interface NewsletterPageProps {
   onNavigate: (view: string) => void;
@@ -87,10 +88,7 @@ export function NewsletterPage({ onNavigate }: NewsletterPageProps) {
               </p>
             </div>
           </div>
-          <Button variant="outline" size="sm" className="gap-2">
-            <Download className="w-4 h-4" />
-            Export Letter
-          </Button>
+          <ExportWritings spaceName="Newsletter" />
         </div>
 
         {/* Responses by Question */}

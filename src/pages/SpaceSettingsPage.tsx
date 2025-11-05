@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -9,11 +10,13 @@ import { Separator } from "../components/ui/separator";
 import { ArrowLeft, Users, Download, Trash2, Bell } from "lucide-react";
 import { MainLayout } from "../components/layouts/MainLayout";
 import { useSpace } from "../contexts/SpaceContext";
+import { ExportWritings } from "../components/ExportWritings";
 
 export function SpaceSettingsPage() {
   const { spaceId } = useParams<{ spaceId: string }>();
   const navigate = useNavigate();
   const { setCurrentSpace } = useSpace();
+  const [exportInlineOpen, setExportInlineOpen] = useState(false);
 
   // Mock space data
   const mockSpacesData: Record<string, any> = {
@@ -167,14 +170,41 @@ export function SpaceSettingsPage() {
             {/* Data Management */}
             <Card className="p-6 paper-texture">
               <h3 className="mb-6">Data Management</h3>
-              <div className="space-y-3">
-                <Button variant="outline" className="w-full justify-start gap-2">
+              <div className="space-y-2">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start gap-2"
+                  onClick={() => setExportInlineOpen(!exportInlineOpen)}
+                >
                   <Download className="w-4 h-4" />
                   Export All Writings
                 </Button>
-                <p className="text-xs text-muted-foreground px-4">
-                  Download a PDF or JSON archive of all responses from this space
-                </p>
+                
+                {/* Inline Export Form */}
+                <AnimatePresence>
+                  {exportInlineOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="pt-6 mt-4 border-t border-border/50">
+                        <ExportWritings 
+                          spaceName={currentSpace.name} 
+                          inline={true}
+                          onClose={() => setExportInlineOpen(false)}
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                
+                {!exportInlineOpen && (
+                  <p className="text-xs text-muted-foreground px-4">
+                    Download a Markdown or JSON archive of all responses from this space
+                  </p>
+                )}
               </div>
             </Card>
 

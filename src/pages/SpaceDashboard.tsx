@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { MainLayout } from "../components/layouts/MainLayout";
 import { useSpace } from "../contexts/SpaceContext";
+import { ExportWritings } from "../components/ExportWritings";
 
 // Mock data - will be replaced with actual data from Supabase
 const mockSpacesData: Record<string, any> = {
@@ -221,6 +222,9 @@ export function SpaceDashboard() {
   const [inviteEmails, setInviteEmails] = useState("");
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviteSuccess, setInviteSuccess] = useState(false);
+  
+  // Export writings state
+  const [exportInlineOpen, setExportInlineOpen] = useState(false);
   
   // Members state
   const [members, setMembers] = useState(initialMembersData);
@@ -887,10 +891,7 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                     })}
                   </div>
 
-                  <Button variant="outline" className="w-full mt-6 gap-2">
-                    <Archive className="w-4 h-4" />
-                    Export All Archives
-                  </Button>
+                  <ExportWritings spaceName={currentSpace.name} className="w-full mt-6" />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1080,10 +1081,31 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                 variant="outline" 
                 size="sm" 
                 className="w-full justify-start gap-2"
+                onClick={() => setExportInlineOpen(!exportInlineOpen)}
               >
                 <Archive className="w-4 h-4" />
                 Export Writings
               </Button>
+
+              {/* Inline Export Form */}
+              <AnimatePresence>
+                {exportInlineOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-6 mt-4 border-t border-border/50">
+                      <ExportWritings 
+                        spaceName={currentSpace.name} 
+                        inline={true}
+                        onClose={() => setExportInlineOpen(false)}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </Card>
         </aside>
