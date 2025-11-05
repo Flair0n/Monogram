@@ -7,7 +7,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Switch } from "../components/ui/switch";
 import { Separator } from "../components/ui/separator";
-import { ArrowLeft, Users, Download, Trash2, Bell } from "lucide-react";
+import { ArrowLeft, Users, Download, Trash2, Bell, Mail, UserPlus } from "lucide-react";
 import { MainLayout } from "../components/layouts/MainLayout";
 import { useSpace } from "../contexts/SpaceContext";
 import { ExportWritings } from "../components/ExportWritings";
@@ -17,6 +17,10 @@ export function SpaceSettingsPage() {
   const navigate = useNavigate();
   const { setCurrentSpace } = useSpace();
   const [exportInlineOpen, setExportInlineOpen] = useState(false);
+  const [inviteInlineOpen, setInviteInlineOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [memberToRemove, setMemberToRemove] = useState<string | null>(null);
+  const [removeConfirmText, setRemoveConfirmText] = useState("");
 
   // Mock space data
   const mockSpacesData: Record<string, any> = {
@@ -97,34 +101,165 @@ export function SpaceSettingsPage() {
 
             {/* Members */}
             <Card className="p-6 paper-texture">
-              <div className="flex items-center justify-between mb-6">
-                <h3>Members (8)</h3>
-                <Button size="sm" className="gap-2">
-                  <Users className="w-4 h-4" />
-                  Invite
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {['Emma Chen', 'Marcus Williams', 'Sofia Rodriguez', 'You'].map((member, index) => (
-                  <div key={index} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
-                        <span className="text-xs text-accent-foreground">
-                          {member.split(' ').map(n => n[0]).join('')}
-                        </span>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between mb-6">
+                  <h3>Members (8)</h3>
+                  <Button 
+                    size="sm" 
+                    className="gap-2"
+                    onClick={() => setInviteInlineOpen(!inviteInlineOpen)}
+                  >
+                    <Users className="w-4 h-4" />
+                    Invite
+                  </Button>
+                </div>
+
+                {/* Inline Invite Form */}
+                <AnimatePresence>
+                  {inviteInlineOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mb-6 p-4 border border-border rounded-lg space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="invite-email" className="text-sm font-normal">
+                            Email Address
+                          </Label>
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                              <Input
+                                id="invite-email"
+                                type="email"
+                                placeholder="member@example.com"
+                                value={inviteEmail}
+                                onChange={(e) => setInviteEmail(e.target.value)}
+                                className="pl-9"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setInviteInlineOpen(false);
+                              setInviteEmail("");
+                            }}
+                            className="flex-1"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              // Handle invite logic here
+                              console.log("Inviting:", inviteEmail);
+                              setInviteInlineOpen(false);
+                              setInviteEmail("");
+                            }}
+                            className="flex-1 gap-2"
+                            disabled={!inviteEmail}
+                          >
+                            <UserPlus className="w-4 h-4" />
+                            Send Invite
+                          </Button>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm">{member}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {index === 0 ? 'Current Curator' : 'Member'}
-                        </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="space-y-3">
+                  {['Emma Chen', 'Marcus Williams', 'Sofia Rodriguez', 'You'].map((member, index) => (
+                    <div key={index}>
+                      <div className="flex items-center justify-between py-2 border-b border-border">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
+                            <span className="text-xs text-accent-foreground">
+                              {member.split(' ').map(n => n[0]).join('')}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-sm">{member}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {index === 0 ? 'Current Curator' : 'Member'}
+                            </p>
+                          </div>
+                        </div>
+                        {member !== 'You' && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              if (memberToRemove === member) {
+                                setMemberToRemove(null);
+                                setRemoveConfirmText("");
+                              } else {
+                                setMemberToRemove(member);
+                                setRemoveConfirmText("");
+                              }
+                            }}
+                          >
+                            {memberToRemove === member ? 'Cancel' : 'Remove'}
+                          </Button>
+                        )}
                       </div>
+
+                      {/* Inline Remove Confirmation */}
+                      <AnimatePresence>
+                        {memberToRemove === member && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="py-4 px-4 space-y-3 bg-destructive/5 border-l-2 border-destructive">
+                              <div className="space-y-2">
+                                <p className="text-sm font-medium text-destructive">
+                                  Confirm removal of {member}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Type <code className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">sudo rm {member}</code> to confirm
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Input
+                                  type="text"
+                                  placeholder={`sudo rm ${member}`}
+                                  value={removeConfirmText}
+                                  onChange={(e) => setRemoveConfirmText(e.target.value)}
+                                  className="flex-1 font-mono text-sm"
+                                  autoFocus
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => {
+                                    // Handle remove logic here
+                                    console.log("Removing member:", member);
+                                    setMemberToRemove(null);
+                                    setRemoveConfirmText("");
+                                  }}
+                                  disabled={removeConfirmText !== `sudo rm ${member}`}
+                                  className="gap-2"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  Remove
+                                </Button>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
-                    {member !== 'You' && (
-                      <Button variant="ghost" size="sm">Remove</Button>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </Card>
 
