@@ -741,19 +741,19 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                     </p>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {members.map((member) => (
-                      <Card key={member.id} className="p-5 paper-texture">
+                      <Card key={member.id} className="p-6 paper-texture">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-sage/10 flex items-center justify-center">
-                              <span className="text-lg font-medium text-sage">
+                          <div className="flex items-center gap-6">
+                            <div className="w-14 h-14 rounded-full bg-sage/10 flex items-center justify-center">
+                              <span className="text-xl font-medium text-sage">
                                 {member.avatar}
                               </span>
                             </div>
                             <div>
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium">{member.name}</p>
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="font-medium text-base">{member.name}</p>
                                 {member.joinedDate === "Just now" && (
                                   <Badge variant="default" className="text-xs bg-sage text-cream">
                                     New
@@ -766,7 +766,7 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="text-xs">
+                            <Badge variant="secondary" className="text-sm px-4 py-2">
                               {member.responsesCount} response{member.responsesCount !== 1 ? 's' : ''}
                             </Badge>
                           </div>
@@ -774,20 +774,6 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                       </Card>
                     ))}
                   </div>
-
-                  <Button 
-                    className="w-full mt-6 gap-2 bg-sage hover:bg-sage/90 text-cream"
-                    onClick={() => {
-                      setInviteDialogOpen(true);
-                      // Scroll to Quick Actions section
-                      setTimeout(() => {
-                        document.querySelector('.quick-actions-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }, 100);
-                    }}
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Invite New Members
-                  </Button>
                 </motion.div>
               )}
 
