@@ -1,10 +1,52 @@
 import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Edit3, Users, Mail, Calendar, Feather, BookOpen, PenLine } from "lucide-react";
 
 export function HeroPage() {
   const navigate = useNavigate();
+  
+  const lines = [
+    "Write together.",
+    "Read together.",
+    "Reflect together."
+  ];
+  
+  const [currentLineIndex, setCurrentLineIndex] = useState(0);
+  const [displayedText, setDisplayedText] = useState("");
+  const [isTyping, setIsTyping] = useState(true);
+  const [showCursor, setShowCursor] = useState(true);
+  
+  // Cursor blink effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setShowCursor(prev => !prev);
+    }, 530);
+    return () => clearInterval(interval);
+  }, []);
+  
+  // Typewriter effect
+  useEffect(() => {
+    const currentLine = lines[currentLineIndex];
+    
+    if (isTyping) {
+      if (displayedText.length < currentLine.length) {
+        const timeout = setTimeout(() => {
+          setDisplayedText(currentLine.slice(0, displayedText.length + 1));
+        }, 100);
+        return () => clearTimeout(timeout);
+      } else {
+        // Finished typing, pause before next line
+        const timeout = setTimeout(() => {
+          setCurrentLineIndex((prev) => (prev + 1) % lines.length);
+          setDisplayedText("");
+        }, 2500);
+        return () => clearTimeout(timeout);
+      }
+    }
+  }, [displayedText, isTyping, currentLineIndex]);
   return (
     <div className="min-h-screen page-transition">
       {/* Navigation */}
@@ -21,7 +63,7 @@ export function HeroPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="px-8 py-24 md:py-32">
+      <section className="px-8 py-32 md:py-48 min-h-screen flex flex-col justify-center">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-block mb-6">
             <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-card">
@@ -30,11 +72,30 @@ export function HeroPage() {
             </div>
           </div>
           
-          <h1 className="text-5xl md:text-6xl mb-6 leading-tight">
-            Write together.<br />
-            Read together.<br />
-            Reflect together.
-          </h1>
+          <div className="min-h-[320px] flex items-center justify-center px-4 w-full">
+            <h1
+              className="mb-6 leading-tight whitespace-nowrap"
+              style={{ 
+                fontFamily: "'Victor Mono', monospace",
+                fontStyle: "italic",
+                fontWeight: 400,
+                fontSize: "clamp(2.5rem, 8vw, 8rem)",
+                marginLeft: "5%"
+              }}
+            >
+              {displayedText}
+              <span 
+                className="text-gray-600"
+                style={{ 
+                  opacity: showCursor ? 1 : 0,
+                  transition: 'opacity 0.1s ease',
+                  marginLeft: '4px'
+                }}
+              >
+                |
+              </span>
+            </h1>
+          </div>
           
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
             A retro typewriter-inspired digital space where small groups take turns curating 
