@@ -4,7 +4,8 @@ import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Switch } from "../components/ui/switch";
 import { Separator } from "../components/ui/separator";
-import { Bell, Palette, Eye, Trash2, AlertCircle, Check, Globe, Shield } from "lucide-react";
+import { Input } from "../components/ui/input";
+import { Bell, Palette, Eye, Trash2, AlertCircle, Check, Globe, Shield, X } from "lucide-react";
 import { MainLayout } from "../components/layouts/MainLayout";
 import { useAuth } from "../contexts/AuthContext";
 import { TerminalSelector } from "../components/ui/terminal-selector";
@@ -21,6 +22,8 @@ export function SettingsPage() {
   const [theme, setTheme] = useState('light');
   const [profileVisibility, setProfileVisibility] = useState('spaces');
   const [landingPage, setLandingPage] = useState('dashboard');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   const categories = [
     { id: 'appearance' as SettingCategory, label: 'Appearance', icon: Palette },
@@ -34,6 +37,27 @@ export function SettingsPage() {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
+
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setDeleteConfirmText("");
+  };
+
+  const handleConfirmDelete = () => {
+    const expectedText = `sudo rm ${user?.name}`;
+    if (deleteConfirmText === expectedText) {
+      // Perform account deletion
+      console.log("Account deleted");
+      // Add your deletion logic here
+      // logout and redirect
+    }
+  };
+
+  const isDeleteEnabled = deleteConfirmText === `sudo rm ${user?.name}`;
 
   return (
     <MainLayout>
@@ -188,7 +212,56 @@ export function SettingsPage() {
                     <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
                       <p className="font-medium text-destructive mb-2">Delete Account</p>
                       <p className="text-sm text-foreground/60 mb-4">This action cannot be undone</p>
-                      <Button variant="destructive" size="sm"><Trash2 className="w-4 h-4 mr-2" />Delete</Button>
+                      
+                      {!showDeleteConfirm ? (
+                        <Button variant="destructive" size="sm" onClick={handleDeleteClick}>
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete Account
+                        </Button>
+                      ) : (
+                        <div className="space-y-4 py-4 px-4 bg-destructive/10 border-l-4 border-destructive rounded">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-medium text-destructive mb-1">Confirm Account Deletion</p>
+                              <p className="text-sm text-foreground/70 mb-3">
+                                Type <code className="px-2 py-0.5 bg-destructive/20 rounded font-mono text-xs">sudo rm {user?.name}</code> to confirm
+                              </p>
+                            </div>
+                            <button
+                              onClick={handleCancelDelete}
+                              className="text-foreground/60 hover:text-foreground transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <Input
+                            type="text"
+                            value={deleteConfirmText}
+                            onChange={(e) => setDeleteConfirmText(e.target.value)}
+                            placeholder={`sudo rm ${user?.name}`}
+                            className="font-mono text-sm bg-background"
+                            autoFocus
+                          />
+                          <div className="flex gap-3">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleCancelDelete}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={handleConfirmDelete}
+                              disabled={!isDeleteEnabled}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete Account
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
