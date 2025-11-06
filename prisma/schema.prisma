@@ -1,7 +1,13 @@
-// Monogram Prisma Schema
+// ================================================================
+// MONOGRAM PRISMA SCHEMA
+// ================================================================
+// Complete schema for MVP (Phase 0) + Phase 1 (Gamification)
 // Compatible with Supabase PostgreSQL
-// Run: npx prisma generate to generate client
-// Run: npx prisma db push to sync with database
+// 
+// Run: npx prisma generate    - Generate Prisma Client
+// Run: npx prisma db push      - Sync schema with database
+// Run: npx prisma studio       - Open Prisma Studio GUI
+// ================================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -13,9 +19,9 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ================================================
-// MODELS
-// ================================================
+// ================================================================
+// CORE MODELS (MVP - Phase 0)
+// ================================================================
 
 model User {
   id         String   @id @db.Uuid
@@ -23,48 +29,85 @@ model User {
   email      String   @unique
   avatarUrl  String?  @map("avatar_url")
   role       UserRole @default(FREE)
+  
+  // Phase 1: Gamification fields
+  tokenBalance    Int      @default(0) @map("token_balance")
+  currentStreak   Int      @default(0) @map("current_streak")
+  longestStreak   Int      @default(0) @map("longest_streak")
+  lastActiveDate  DateTime? @map("last_active_date") @db.Date
+  totalResponses  Int      @default(0) @map("total_responses")
+  totalCurations  Int      @default(0) @map("total_curations")
+  
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
-  createdSpaces Space[]       @relation("CreatedSpaces")
-  curatedSpaces Space[]       @relation("CuratedSpaces")
-  memberships   Membership[]
-  prompts       Prompt[]
-  responses     Response[]
-  settings      Settings?
+  createdSpaces     Space[]              @relation("CreatedSpaces")
+  curatedSpaces     Space[]              @relation("CuratedSpaces")
+  memberships       Membership[]
+  prompts           Prompt[]
+  responses         Response[]
+  settings          Settings?
+  
+  // Phase 1 Relations
+  transactions      Transaction[]
+  userBadges        UserBadge[]
+  purchases         Purchase[]
+  giftsGiven        TokenGift[]          @relation("GiftsGiven")
+  giftsReceived     TokenGift[]          @relation("GiftsReceived")
+  curatorRotations  CuratorRotation[]
 
+  @@index([email])
+  @@index([tokenBalance])
+  @@index([currentStreak])
   @@map("users")
 }
 
 model Space {
-  id               String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id               String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   name             String
-  description      String
-  creatorId        String     @map("creator_id") @db.Uuid
-  accessType       AccessType @default(PUBLIC) @map("access_type")
-  currentWeek      Int        @default(1) @map("current_week")
-  currentCuratorId String?    @map("current_curator_id") @db.Uuid
-  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+  description      String?          @db.Text
+  leaderId         String           @map("leader_id") @db.Uuid
+  accessType       AccessType       @default(PUBLIC) @map("access_type")
+  currentWeek      Int              @default(1) @map("current_week")
+  currentCuratorId String?          @map("current_curator_id") @db.Uuid
+  
+  // Curator rotation settings
+  rotationType     CuratorRotationType @default(ROUND_ROBIN) @map("rotation_type")
+  
+  // Newsletter settings
+  publishDay       Int              @default(0) @map("publish_day") // 0 = Sunday, 6 = Saturday
+  isPublished      Boolean          @default(false) @map("is_published")
+  
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
-  creator        User         @relation("CreatedSpaces", fields: [creatorId], references: [id], onDelete: Cascade)
-  currentCurator User?        @relation("CuratedSpaces", fields: [currentCuratorId], references: [id])
-  memberships    Membership[]
-  prompts        Prompt[]
+  leader           User             @relation("CreatedSpaces", fields: [leaderId], references: [id], onDelete: Cascade)
+  currentCurator   User?            @relation("CuratedSpaces", fields: [currentCuratorId], references: [id])
+  memberships      Membership[]
+  prompts          Prompt[]
+  newsletters      Newsletter[]
+  curatorRotations CuratorRotation[]
 
-  @@index([creatorId])
+  @@index([leaderId])
   @@index([accessType])
+  @@index([currentWeek])
   @@map("spaces")
 }
 
 model Membership {
-  id       String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  spaceId  String         @map("space_id") @db.Uuid
-  userId   String         @map("user_id") @db.Uuid
-  role     MembershipRole @default(MEMBER)
-  joinedAt DateTime       @default(now()) @map("joined_at") @db.Timestamptz
+  id                String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  spaceId           String         @map("space_id") @db.Uuid
+  userId            String         @map("user_id") @db.Uuid
+  role              MembershipRole @default(MEMBER)
+  
+  // Participation tracking
+  weeklyStreak      Int            @default(0) @map("weekly_streak")
+  totalSubmissions  Int            @default(0) @map("total_submissions")
+  
+  joinedAt          DateTime       @default(now()) @map("joined_at") @db.Timestamptz
+  lastSubmittedAt   DateTime?      @map("last_submitted_at") @db.Timestamptz
 
   // Relations
   space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
@@ -73,25 +116,39 @@ model Membership {
   @@unique([spaceId, userId])
   @@index([spaceId])
   @@index([userId])
+  @@index([role])
   @@map("memberships")
 }
 
 model Prompt {
-  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  spaceId    String   @map("space_id") @db.Uuid
-  curatorId  String   @map("curator_id") @db.Uuid
-  weekNumber Int      @map("week_number")
-  title      String
-  content    String
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id         String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  spaceId    String      @map("space_id") @db.Uuid
+  curatorId  String      @map("curator_id") @db.Uuid
+  weekNumber Int         @map("week_number")
+  
+  // Prompt content
+  question   String      @db.Text
+  order      Int         @default(0) // Order within the week (1-10)
+  
+  // Media attachments
+  imageUrl   String?     @map("image_url")
+  musicUrl   String?     @map("music_url") // Spotify/Apple Music link
+  mediaType  MediaType?  @map("media_type")
+  
+  isPublished Boolean    @default(false) @map("is_published")
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   space     Space      @relation(fields: [spaceId], references: [id], onDelete: Cascade)
   curator   User       @relation(fields: [curatorId], references: [id], onDelete: Cascade)
   responses Response[]
 
+  @@unique([spaceId, weekNumber, order])
   @@index([spaceId])
   @@index([weekNumber])
+  @@index([curatorId])
+  @@index([isPublished])
   @@map("prompts")
 }
 
@@ -99,8 +156,15 @@ model Response {
   id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   promptId  String   @map("prompt_id") @db.Uuid
   userId    String   @map("user_id") @db.Uuid
-  content   String
+  
+  // Response content
+  content   String   @db.Text
+  imageUrl  String?  @map("image_url")
+  musicUrl  String?  @map("music_url")
+  
   isDraft   Boolean  @default(true) @map("is_draft")
+  isSelected Boolean @default(false) @map("is_selected") // Selected for newsletter
+  
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -108,19 +172,225 @@ model Response {
   prompt Prompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([promptId, userId])
   @@index([promptId])
   @@index([userId])
   @@index([isDraft])
   @@map("responses")
 }
 
+model Newsletter {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  spaceId         String   @map("space_id") @db.Uuid
+  weekNumber      Int      @map("week_number")
+  curatorId       String   @map("curator_id") @db.Uuid
+  
+  // Newsletter content
+  title           String
+  theme           String?  @db.Text // Curator's theme/reflection
+  footerNote      String?  @map("footer_note") @db.Text
+  
+  // URLs
+  publicUrl       String?  @map("public_url") // Web version
+  pdfUrl          String?  @map("pdf_url")    // PDF export
+  
+  // Publishing
+  isPublished     Boolean  @default(false) @map("is_published")
+  publishedAt     DateTime? @map("published_at") @db.Timestamptz
+  emailsSent      Int      @default(0) @map("emails_sent")
+  
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@unique([spaceId, weekNumber])
+  @@index([spaceId])
+  @@index([weekNumber])
+  @@index([isPublished])
+  @@map("newsletters")
+}
+
+model CuratorRotation {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  spaceId     String   @map("space_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  weekNumber  Int      @map("week_number")
+  wasNotified Boolean  @default(false) @map("was_notified")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([spaceId, weekNumber])
+  @@index([spaceId])
+  @@index([userId])
+  @@map("curator_rotations")
+}
+
+// ================================================================
+// GAMIFICATION MODELS (Phase 1)
+// ================================================================
+
+model Transaction {
+  id        String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String            @map("user_id") @db.Uuid
+  amount    Int               // Positive for earning, negative for spending
+  type      TransactionType
+  reason    String            @db.Text
+  
+  // Optional metadata
+  spaceId   String?           @map("space_id") @db.Uuid
+  promptId  String?           @map("prompt_id") @db.Uuid
+  itemId    String?           @map("item_id") @db.Uuid // Store item purchased
+  
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+model Badge {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String   @unique
+  description String   @db.Text
+  imageUrl    String   @map("image_url")
+  category    BadgeCategory
+  
+  // Unlock criteria
+  criteria    String   @db.Text // JSON string with unlock requirements
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  userBadges UserBadge[]
+
+  @@index([category])
+  @@index([isActive])
+  @@map("badges")
+}
+
+model UserBadge {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  badgeId    String   @map("badge_id") @db.Uuid
+  earnedAt   DateTime @default(now()) @map("earned_at") @db.Timestamptz
+  
+  // Display settings
+  isDisplayed Boolean @default(true) @map("is_displayed")
+  displayOrder Int?   @map("display_order")
+
+  // Relations
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+  @@index([badgeId])
+  @@map("user_badges")
+}
+
+model StoreItem {
+  id          String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String
+  description String         @db.Text
+  category    StoreCategory
+  itemType    String         @map("item_type") // theme, sound, skin, etc.
+  
+  // Pricing
+  price       Int            // Cost in tokens
+  
+  // Media
+  previewUrl  String?        @map("preview_url")
+  assetUrl    String?        @map("asset_url") // Actual file/config
+  
+  // Metadata
+  metadata    String?        @db.Text // JSON string with item config
+  
+  // Availability
+  isAvailable Boolean        @default(true) @map("is_available")
+  isLimited   Boolean        @default(false) @map("is_limited")
+  stock       Int?           // For limited items
+  
+  sortOrder   Int            @default(0) @map("sort_order")
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  purchases Purchase[]
+
+  @@index([category])
+  @@index([isAvailable])
+  @@index([isLimited])
+  @@map("store_items")
+}
+
+model Purchase {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  itemId      String   @map("item_id") @db.Uuid
+  pricePaid   Int      @map("price_paid") // Token amount at time of purchase
+  
+  // Status
+  isActive    Boolean  @default(true) @map("is_active") // Can be toggled off
+  purchasedAt DateTime @default(now()) @map("purchased_at") @db.Timestamptz
+
+  // Relations
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item StoreItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemId])
+  @@index([userId])
+  @@index([itemId])
+  @@map("purchases")
+}
+
+model TokenGift {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  fromUserId String   @map("from_user_id") @db.Uuid
+  toUserId   String   @map("to_user_id") @db.Uuid
+  amount     Int
+  message    String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  giver    User @relation("GiftsGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
+  receiver User @relation("GiftsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@map("token_gifts")
+}
+
 model Settings {
   id                 String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   userId             String            @unique @map("user_id") @db.Uuid
+  
+  // Display preferences
   theme              Theme             @default(LIGHT)
-  emailNotifications Boolean           @default(true) @map("email_notifications")
   landingPage        LandingPage       @default(DASHBOARD) @map("landing_page")
   profileVisibility  ProfileVisibility @default(SPACES) @map("profile_visibility")
+  
+  // Notifications
+  emailNotifications Boolean           @default(true) @map("email_notifications")
+  weeklyReminders    Boolean           @default(true) @map("weekly_reminders")
+  curatorNotifications Boolean         @default(true) @map("curator_notifications")
+  badgeNotifications Boolean           @default(true) @map("badge_notifications")
+  
+  // Phase 1: Customization
+  activeThemeId      String?           @map("active_theme_id") @db.Uuid
+  typwriterSound     Boolean           @default(false) @map("typewriter_sound")
+  customCssUrl       String?           @map("custom_css_url")
+  
   createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -131,9 +401,9 @@ model Settings {
   @@map("settings")
 }
 
-// ================================================
+// ================================================================
 // ENUMS
-// ================================================
+// ================================================================
 
 enum UserRole {
   FREE
@@ -152,10 +422,60 @@ enum AccessType {
 
 enum MembershipRole {
   MEMBER
-  CURATOR
-  ADMIN
+  CURATOR  // Can be assigned as curator
+  ADMIN    // Co-admin of space
 
   @@map("membership_role")
+}
+
+enum CuratorRotationType {
+  ROUND_ROBIN // Automatic rotation through members
+  MANUAL      // Leader assigns each week
+  RANDOM      // Random selection from eligible members
+
+  @@map("curator_rotation_type")
+}
+
+enum MediaType {
+  IMAGE
+  MUSIC
+  VIDEO
+
+  @@map("media_type")
+}
+
+enum TransactionType {
+  EARN_RESPONSE      // Weekly submission
+  EARN_CURATOR       // Serving as curator
+  EARN_STREAK        // Streak milestone
+  EARN_BADGE         // Badge reward
+  EARN_GIFT          // Received gift
+  SPEND_PURCHASE     // Store purchase
+  SPEND_GIFT         // Sent gift
+  ADMIN_ADJUSTMENT   // Manual admin change
+
+  @@map("transaction_type")
+}
+
+enum BadgeCategory {
+  PARTICIPATION  // Submission streaks
+  CURATION       // Curator achievements
+  SOCIAL         // Community engagement
+  MILESTONE      // Platform milestones
+  SEASONAL       // Limited time events
+  SPECIAL        // Unique/rare badges
+
+  @@map("badge_category")
+}
+
+enum StoreCategory {
+  THEMES         // Visual themes
+  SOUNDS         // Audio effects
+  SKINS          // UI customizations
+  SEASONAL       // Limited time items
+  PREMIUM        // Special items
+
+  @@map("store_category")
 }
 
 enum Theme {
@@ -174,9 +494,9 @@ enum LandingPage {
 }
 
 enum ProfileVisibility {
-  PUBLIC
-  SPACES
-  PRIVATE
+  PUBLIC   // Visible to everyone
+  SPACES   // Only visible to space members
+  PRIVATE  // Only visible to self
 
   @@map("profile_visibility")
 }

@@ -23,7 +23,6 @@ export const prisma = globalThis.prisma ?? prismaClientSingleton();
 
 if (isDevelopment) globalThis.prisma = prisma;
 
-// Export types for convenience (will be available after running prisma:generate)
-// Uncomment these after running: npm run prisma:generate
-// export type { User, Space, Membership, Prompt, Response, Settings } from '@prisma/client';
-// export { UserRole, AccessType, MembershipRole, Theme, LandingPage, ProfileVisibility } from '@prisma/client';
+// Export types for convenience (available after running prisma:generate)
+export type { User, Space, Membership, Prompt, Response, Settings } from '@prisma/client';
+export { UserRole, AccessType, MembershipRole, Theme, LandingPage, ProfileVisibility } from '@prisma/client';
