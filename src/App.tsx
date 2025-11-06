@@ -4,6 +4,7 @@ import { SpaceProvider } from './contexts/SpaceContext';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { HeroPage } from './pages/HeroPage';
 import { LoginPage } from './pages/LoginPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { Dashboard } from './pages/Dashboard';
 import { ProfilePage } from './pages/ProfilePage';
 import { EditProfilePage } from './pages/EditProfilePage';
@@ -22,6 +23,7 @@ export default function App() {
               {/* Public Routes */}
               <Route path="/" element={<HeroPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
               {/* Protected Routes */}
               <Route 

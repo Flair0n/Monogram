@@ -8,22 +8,223 @@ import { Separator } from "../components/ui/separator";
 import { Edit3, ArrowLeft, Mail, Lock } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
+// Helper function to parse Supabase auth errors into user-friendly messages
+function parseAuthError(error: Error): string {
+  const message = error.message.toLowerCase();
+  
+  // Password validation errors
+  if (message.includes('password') && message.includes('short')) {
+    return 'Password must be at least 6 characters long';
+  }
+  if (message.includes('password') && message.includes('weak')) {
+    return 'Password is too weak. Use a mix of letters, numbers, and symbols';
+  }
+  
+  // Email validation errors
+  if (message.includes('invalid') && message.includes('email')) {
+    return 'Please enter a valid email address';
+  }
+  if (message.includes('email') && message.includes('already')) {
+    return 'An account with this email already exists. Try signing in instead';
+  }
+  if (message.includes('user already registered')) {
+    return 'An account with this email already exists. Try signing in instead';
+  }
+  
+  // Authentication errors
+  if (message.includes('invalid login credentials') || message.includes('invalid credentials')) {
+    return 'Invalid email or password. Please try again';
+  }
+  if (message.includes('email not confirmed')) {
+    return 'Please check your email and confirm your account before signing in';
+  }
+  if (message.includes('user not found')) {
+    return 'No account found with this email. Try signing up instead';
+  }
+  
+  // Network/server errors
+  if (message.includes('network') || message.includes('fetch')) {
+    return 'Network error. Please check your connection and try again';
+  }
+  if (message.includes('timeout')) {
+    return 'Request timed out. Please try again';
+  }
+  
+  // Rate limiting
+  if (message.includes('too many requests')) {
+    return 'Too many attempts. Please wait a moment and try again';
+  }
+  
+  // Default fallback
+  return error.message || 'An error occurred. Please try again';
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, signup, resetPassword } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent) => {
     if (e) {
       e.preventDefault();
     }
-    // Mock login/signup
-    login(email, password);
-    navigate('/dashboard');
+    
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (isSignUp) {
+        const { error } = await signup(email, password, name);
+        if (error) {
+          setError(parseAuthError(error));
+          setLoading(false);
+        } else {
+          navigate('/dashboard');
+        }
+      } else {
+        const { error } = await login(email, password);
+        if (error) {
+          setError(parseAuthError(error));
+          setLoading(false);
+        } else {
+          navigate('/dashboard');
+        }
+      }
+    } catch (err: any) {
+      setError(parseAuthError(err));
+      setLoading(false);
+    }
   };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email) {
+      setError('Please enter your email address');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { error } = await resetPassword(email);
+      if (error) {
+        setError(parseAuthError(error));
+      } else {
+        setResetEmailSent(true);
+      }
+    } catch (err: any) {
+      setError(parseAuthError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // If showing forgot password form
+  if (showForgotPassword) {
+    return (
+      <div className="min-h-screen flex flex-col page-transition">
+        {/* Header */}
+        <nav className="border-b border-border bg-card/50 backdrop-blur-sm">
+          <div className="max-w-6xl mx-auto px-8 py-4 flex items-center justify-between">
+            <button 
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            >
+              <Edit3 className="w-6 h-6" />
+              <span className="text-xl">Monogram</span>
+            </button>
+            <Button 
+              variant="ghost" 
+              onClick={() => setShowForgotPassword(false)}
+              className="gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Login
+            </Button>
+          </div>
+        </nav>
+
+        {/* Forgot Password Form */}
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="w-full max-w-md">
+            <Card className="p-8 md:p-10 paper-texture shadow-lg">
+              {resetEmailSent ? (
+                <div className="text-center space-y-4">
+                  <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center">
+                    <Mail className="w-8 h-8 text-green-600" />
+                  </div>
+                  <h2 className="text-2xl font-medium">Check Your Email</h2>
+                  <p className="text-muted-foreground">
+                    We've sent a password reset link to <strong>{email}</strong>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Click the link in the email to reset your password. The link will expire in 1 hour.
+                  </p>
+                  <Button 
+                    onClick={() => {
+                      setShowForgotPassword(false);
+                      setResetEmailSent(false);
+                      setEmail("");
+                    }}
+                    className="w-full"
+                  >
+                    Back to Login
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="text-center mb-8">
+                    <h2 className="text-3xl mb-2">Reset Password</h2>
+                    <p className="text-muted-foreground">
+                      Enter your email and we'll send you a reset link
+                      <span className="cursor-blink inline-block ml-1">|</span>
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleForgotPassword} className="space-y-4">
+                    <div>
+                      <Label htmlFor="email">Email</Label>
+                      <div className="relative mt-2">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="you@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="pl-10"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {error && (
+                      <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded text-sm">
+                        {error}
+                      </div>
+                    )}
+
+                    <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                      {loading ? "Sending..." : "Send Reset Link"}
+                    </Button>
+                  </form>
+                </>
+              )}
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col page-transition">
@@ -118,6 +319,7 @@ export function LoginPage() {
                 <div className="flex justify-end">
                   <button 
                     type="button"
+                    onClick={() => setShowForgotPassword(true)}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Forgot password?
@@ -125,8 +327,14 @@ export function LoginPage() {
                 </div>
               )}
 
-              <Button type="submit" className="w-full" size="lg">
-                {isSignUp ? "Create Account" : "Sign In"}
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded text-sm">
+                  {error}
+                </div>
+              )}
+
+              <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                {loading ? (isSignUp ? "Creating Account..." : "Signing In...") : (isSignUp ? "Create Account" : "Sign In")}
               </Button>
             </form>
 

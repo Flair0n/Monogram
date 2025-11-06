@@ -14,10 +14,12 @@ import {
   ChevronRight,
   Feather,
   Inbox,
-  UsersRound
+  UsersRound,
+  LogOut
 } from "lucide-react";
 import { MainLayout } from "../components/layouts/MainLayout";
 import { usePermission } from "../components/permissions";
+import { useAuth } from "../contexts/AuthContext";
 import {
   Tooltip,
   TooltipContent,
