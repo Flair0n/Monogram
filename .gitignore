@@ -14,6 +14,10 @@ out
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*.local
+
+# Keep example files
+!.env.example
 
 # Logs
 logs
@@ -47,5 +51,10 @@ coverage
 .netlify
 *.tsbuildinfo
 
+# Prisma
+src/generated/prisma
+
 # OS
 Thumbs.db
+
+/src/generated/prisma

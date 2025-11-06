@@ -1,0 +1,182 @@
+// Monogram Prisma Schema
+// Compatible with Supabase PostgreSQL
+// Run: npx prisma generate to generate client
+// Run: npx prisma db push to sync with database
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ================================================
+// MODELS
+// ================================================
+
+model User {
+  id         String   @id @db.Uuid
+  name       String
+  email      String   @unique
+  avatarUrl  String?  @map("avatar_url")
+  role       UserRole @default(FREE)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  createdSpaces Space[]       @relation("CreatedSpaces")
+  curatedSpaces Space[]       @relation("CuratedSpaces")
+  memberships   Membership[]
+  prompts       Prompt[]
+  responses     Response[]
+  settings      Settings?
+
+  @@map("users")
+}
+
+model Space {
+  id               String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name             String
+  description      String
+  creatorId        String     @map("creator_id") @db.Uuid
+  accessType       AccessType @default(PUBLIC) @map("access_type")
+  currentWeek      Int        @default(1) @map("current_week")
+  currentCuratorId String?    @map("current_curator_id") @db.Uuid
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  creator        User         @relation("CreatedSpaces", fields: [creatorId], references: [id], onDelete: Cascade)
+  currentCurator User?        @relation("CuratedSpaces", fields: [currentCuratorId], references: [id])
+  memberships    Membership[]
+  prompts        Prompt[]
+
+  @@index([creatorId])
+  @@index([accessType])
+  @@map("spaces")
+}
+
+model Membership {
+  id       String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  spaceId  String         @map("space_id") @db.Uuid
+  userId   String         @map("user_id") @db.Uuid
+  role     MembershipRole @default(MEMBER)
+  joinedAt DateTime       @default(now()) @map("joined_at") @db.Timestamptz
+
+  // Relations
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([spaceId, userId])
+  @@index([spaceId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+model Prompt {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  spaceId    String   @map("space_id") @db.Uuid
+  curatorId  String   @map("curator_id") @db.Uuid
+  weekNumber Int      @map("week_number")
+  title      String
+  content    String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  space     Space      @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  curator   User       @relation(fields: [curatorId], references: [id], onDelete: Cascade)
+  responses Response[]
+
+  @@index([spaceId])
+  @@index([weekNumber])
+  @@map("prompts")
+}
+
+model Response {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  promptId  String   @map("prompt_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  content   String
+  isDraft   Boolean  @default(true) @map("is_draft")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  prompt Prompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([promptId])
+  @@index([userId])
+  @@index([isDraft])
+  @@map("responses")
+}
+
+model Settings {
+  id                 String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId             String            @unique @map("user_id") @db.Uuid
+  theme              Theme             @default(LIGHT)
+  emailNotifications Boolean           @default(true) @map("email_notifications")
+  landingPage        LandingPage       @default(DASHBOARD) @map("landing_page")
+  profileVisibility  ProfileVisibility @default(SPACES) @map("profile_visibility")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("settings")
+}
+
+// ================================================
+// ENUMS
+// ================================================
+
+enum UserRole {
+  FREE
+  PREMIUM
+  ADMIN
+
+  @@map("user_role")
+}
+
+enum AccessType {
+  PUBLIC  @map("Public")
+  PRIVATE @map("Private")
+
+  @@map("access_type")
+}
+
+enum MembershipRole {
+  MEMBER
+  CURATOR
+  ADMIN
+
+  @@map("membership_role")
+}
+
+enum Theme {
+  LIGHT
+  DARK
+  SYSTEM
+
+  @@map("theme")
+}
+
+enum LandingPage {
+  DASHBOARD  @map("dashboard")
+  LAST_SPACE @map("last-space")
+
+  @@map("landing_page")
+}
+
+enum ProfileVisibility {
+  PUBLIC
+  SPACES
+  PRIVATE
+
+  @@map("profile_visibility")
+}
