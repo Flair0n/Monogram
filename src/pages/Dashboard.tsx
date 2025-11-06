@@ -27,58 +27,52 @@ import {
   TooltipTrigger,
 } from "../components/ui/tooltip";
 import { TerminalSelector } from "../components/ui/terminal-selector";
-
-// Mock data - replace with Supabase later
-const mockSpaces = [
-  {
-    id: "1",
-    name: "Sunday Reflections",
-    description: "Weekly introspective prompts for mindful living",
-    memberCount: 8,
-    currentWeek: 12,
-    currentCurator: "Emma Chen",
-    unreadResponses: 3,
-    color: "accent"
-  },
-  {
-    id: "2",
-    name: "Creative Sparks",
-    description: "Fiction prompts and collaborative storytelling",
-    memberCount: 6,
-    currentWeek: 8,
-    currentCurator: "Marcus Williams",
-    unreadResponses: 0,
-    color: "secondary"
-  },
-  {
-    id: "3",
-    name: "Morning Pages",
-    description: "Daily gratitude and goal-setting journaling",
-    memberCount: 12,
-    currentWeek: 24,
-    currentCurator: "You",
-    unreadResponses: 5,
-    color: "primary"
-  }
-];
+import { getUserSpaces, createSpace, type SpaceWithDetails, type AccessType } from "../lib/space-api";
+import { SpaceCard } from "../components/SpaceCard";
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { allowed: canCreate, message: createMessage } = usePermission('canCreateSpace');
+  const [spaces, setSpaces] = useState<SpaceWithDetails[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showTerminal, setShowTerminal] = useState(false);
   const [spaceName, setSpaceName] = useState("");
   const [description, setDescription] = useState("");
-  const [accessType, setAccessType] = useState<"Public" | "Private">("Public");
+  const [accessType, setAccessType] = useState<AccessType>("PUBLIC");
+  const [rotationType, setRotationType] = useState<"ROUND_ROBIN" | "RANDOM" | "MANUAL">("ROUND_ROBIN");
+  const [publishDay, setPublishDay] = useState<number>(0); // 0 = Sunday
   const [isCreating, setIsCreating] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [cursorBlink, setCursorBlink] = useState(true);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
+  // Load user's spaces
+  useEffect(() => {
+    if (user) {
+      loadSpaces();
+    }
+  }, [user]);
+
+  const loadSpaces = async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      const userSpaces = await getUserSpaces(user.id);
+      setSpaces(userSpaces);
+    } catch (error) {
+      console.error('Error loading spaces:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Calculate global stats
   const stats = {
-    activeSpaces: mockSpaces.length,
-    unreadUpdates: mockSpaces.reduce((acc, space) => acc + space.unreadResponses, 0),
-    totalCommunity: mockSpaces.reduce((acc, space) => acc + space.memberCount, 0),
+    activeSpaces: spaces.length,
+    unreadUpdates: spaces.reduce((acc, space) => acc + (space.unread_responses || 0), 0),
+    totalCommunity: spaces.reduce((acc, space) => acc + space.member_count, 0),
   };
 
   // Cursor blink effect
@@ -119,50 +113,84 @@ export function Dashboard() {
     setShowTerminal(false);
     setSpaceName("");
     setDescription("");
-    setAccessType("Public");
+    setAccessType("PUBLIC");
+    setRotationType("ROUND_ROBIN");
+    setPublishDay(0);
     setIsCreating(false);
     setShowSuccess(false);
   };
 
   const handleAccessTypeChange = (type: string) => {
     if (!isCreating && !showSuccess) {
-      setAccessType(type as "Public" | "Private");
+      setAccessType(type as AccessType);
+    }
+  };
+
+  const handleRotationTypeChange = (type: string) => {
+    if (!isCreating && !showSuccess) {
+      setRotationType(type as "ROUND_ROBIN" | "RANDOM" | "MANUAL");
+    }
+  };
+
+  const handlePublishDayChange = (day: string) => {
+    if (!isCreating && !showSuccess) {
+      setPublishDay(parseInt(day));
     }
   };
 
   const accessTypeOptions = [
-    { value: "Public", label: "Public" },
-    { value: "Private", label: "Private" },
+    { value: "PUBLIC", label: "Public" },
+    { value: "PRIVATE", label: "Private" },
+  ];
+
+  const rotationTypeOptions = [
+    { value: "ROUND_ROBIN", label: "Round Robin" },
+    { value: "RANDOM", label: "Random" },
+    { value: "MANUAL", label: "Manual" },
+  ];
+
+  const publishDayOptions = [
+    { value: "0", label: "Sunday" },
+    { value: "1", label: "Monday" },
+    { value: "2", label: "Tuesday" },
+    { value: "3", label: "Wednesday" },
+    { value: "4", label: "Thursday" },
+    { value: "5", label: "Friday" },
+    { value: "6", label: "Saturday" },
   ];
 
   const handleSubmit = async () => {
-    if (!spaceName.trim() || !description.trim()) return;
+    if (!spaceName.trim() || !description.trim() || !user) return;
     
     setIsCreating(true);
     
-    // Simulate typewriter effect
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Save space locally (mock implementation)
-    const newSpace = {
-      id: Date.now().toString(),
-      name: spaceName,
-      description: description,
-      accessType: accessType,
-      memberCount: 1,
-      currentWeek: 1,
-      currentCurator: "You",
-      unreadResponses: 0,
-    };
-    
-    console.log("Created space:", newSpace);
-    
-    setIsCreating(false);
-    setShowSuccess(true);
-    
-    // Close after showing success
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    closeTerminal();
+    try {
+      // Simulate typewriter effect
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Create space in database
+      await createSpace({
+        name: spaceName,
+        description: description,
+        leaderId: user.id,
+        accessType: accessType,
+        rotationType: rotationType,
+        publishDay: publishDay,
+      });
+      
+      setIsCreating(false);
+      setShowSuccess(true);
+      
+      // Reload spaces
+      await loadSpaces();
+      
+      // Close after showing success
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      closeTerminal();
+    } catch (error) {
+      console.error('Error creating space:', error);
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -182,55 +210,25 @@ export function Dashboard() {
 
           {/* Spaces Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mockSpaces.map((space) => (
-              <Card
-                key={space.id}
-                className="p-6 paper-texture cursor-pointer hover:shadow-lg transition-all group"
-                onClick={() => navigate(`/spaces/${space.id}/dashboard`)}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`w-12 h-12 rounded-full bg-${space.color} flex items-center justify-center shrink-0`}>
-                    <Feather className={`w-6 h-6 text-${space.color}-foreground`} />
-                  </div>
-                  {space.unreadResponses > 0 && (
-                    <Badge variant="default" className="text-xs">
-                      {space.unreadResponses} new
-                    </Badge>
-                  )}
-                </div>
-
-                <h3 className="mb-2 group-hover:text-primary transition-colors">
-                  {space.name}
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
-                  {space.description}
-                </p>
-
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Users className="w-4 h-4" />
-                    <span>{space.memberCount} members</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="w-4 h-4" />
-                    <span>Week {space.currentWeek}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Mail className="w-4 h-4" />
-                    <span>Curator: {space.currentCurator}</span>
-                  </div>
-                </div>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full gap-2 group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
-                >
-                  Enter Space
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </Card>
-            ))}
+            {loading ? (
+              <div className="col-span-full text-center py-12">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-sage border-r-transparent"></div>
+                <p className="text-sm text-foreground/60 mt-4">Loading your spaces...</p>
+              </div>
+            ) : spaces.length === 0 ? (
+              <div className="col-span-full text-center py-12">
+                <p className="text-foreground/60 mb-4">No spaces yet. Create your first one!</p>
+              </div>
+            ) : (
+              spaces.map((space) => (
+                <SpaceCard
+                  key={space.id}
+                  space={space}
+                  currentUserId={user?.id}
+                  onClick={() => navigate(`/spaces/${space.id}/dashboard`)}
+                />
+              ))
+            )}
 
             {/* Create New Space Card */}
             <TooltipProvider delayDuration={200}>
@@ -387,6 +385,32 @@ export function Dashboard() {
                         value={accessType}
                         onChange={handleAccessTypeChange}
                         label="Access Type"
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Curator Rotation Type */}
+                  <div className="space-y-1">
+                    <div className="ml-4">
+                      <TerminalSelector
+                        options={rotationTypeOptions}
+                        value={rotationType}
+                        onChange={handleRotationTypeChange}
+                        label="Curator Rotation"
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Weekly Publish Day */}
+                  <div className="space-y-1">
+                    <div className="ml-4">
+                      <TerminalSelector
+                        options={publishDayOptions}
+                        value={publishDay.toString()}
+                        onChange={handlePublishDayChange}
+                        label="Publish Day"
                         className="w-full"
                       />
                     </div>

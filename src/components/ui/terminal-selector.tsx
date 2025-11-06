@@ -25,6 +25,7 @@ export function TerminalSelector({
 }: TerminalSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState(-1);
+  const [isFocused, setIsFocused] = useState(false);
   const [showCursor, setShowCursor] = useState(true);
   const [typedText, setTypedText] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -32,13 +33,17 @@ export function TerminalSelector({
   // Find current option
   const currentOption = options.find((opt) => opt.value === value);
 
-  // Blinking cursor effect
+  // Blinking cursor effect - only when focused and closed
   useEffect(() => {
-    const interval = setInterval(() => {
-      setShowCursor((prev) => !prev);
-    }, 530);
-    return () => clearInterval(interval);
-  }, []);
+    if (isFocused && !isOpen) {
+      const interval = setInterval(() => {
+        setShowCursor((prev) => !prev);
+      }, 530);
+      return () => clearInterval(interval);
+    } else {
+      setShowCursor(false); // Hide when not focused
+    }
+  }, [isFocused, isOpen]);
 
   // Handle click outside
   useEffect(() => {
@@ -46,6 +51,7 @@ export function TerminalSelector({
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
         setHoveredIndex(-1);
+        setIsFocused(false);
       }
     };
 
@@ -147,6 +153,7 @@ export function TerminalSelector({
   const handleToggle = () => {
     setIsOpen(!isOpen);
     setTypedText("");
+    setIsFocused(true);
     if (!isOpen) {
       playClickSound();
     }
@@ -157,6 +164,8 @@ export function TerminalSelector({
       {/* Terminal Input Line */}
       <button
         onClick={handleToggle}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => !isOpen && setIsFocused(false)}
         className="w-full text-left font-mono text-sm tracking-wide transition-all duration-200 focus:outline-none group"
         style={{
           color: "#2b2a28",
@@ -169,9 +178,9 @@ export function TerminalSelector({
           <span className="text-[#2b2a28] font-medium">
             {isOpen && typedText ? typedText : (currentOption?.label || "Select...")}
           </span>
-          {!isOpen && showCursor && (
+          {isFocused && !isOpen && showCursor && (
             <span
-              className="inline-block w-2 h-4 ml-0.5 animate-pulse"
+              className="inline-block w-2 h-4 ml-0.5"
               style={{ background: "#2b2a28" }}
             >
               ▉
@@ -179,7 +188,7 @@ export function TerminalSelector({
           )}
           {isOpen && (
             <span
-              className="inline-block w-2 h-4 ml-0.5"
+              className="inline-block w-2 h-4 ml-0.5 cursor-blink"
               style={{ background: "#2b2a28" }}
             >
               ▉
@@ -211,34 +220,29 @@ export function TerminalSelector({
             }}
           >
             <div className="p-2">
-              {options.map((option, index) => (
-                <button
-                  key={option.value}
-                  onMouseEnter={() => setHoveredIndex(index)}
-                  onClick={() => handleSelect(option.value)}
-                  className="w-full text-left font-mono text-sm tracking-wide py-2 px-3 transition-all duration-150 rounded-sm"
-                  style={{
-                    color: hoveredIndex === index ? "#2b2a28" : "#2b2a28/70",
-                    background: hoveredIndex === index ? "#fdfaf5" : "transparent",
-                    fontWeight: option.value === value ? 500 : 400,
-                  }}
-                >
-                  <span className="text-[#b7a97a] select-none mr-2">
-                    {option.value === value ? "●" : "○"}
-                  </span>
-                  {option.label}
-                  {hoveredIndex === index && (
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="inline-block w-2 h-4 ml-1"
-                      style={{ background: "#2b2a28" }}
-                    >
-                      ▉
-                    </motion.span>
-                  )}
-                </button>
-              ))}
+              {options.map((option, index) => {
+                const isHovered = hoveredIndex === index;
+                const isSelected = option.value === value;
+                
+                return (
+                  <button
+                    key={option.value}
+                    onMouseEnter={() => setHoveredIndex(index)}
+                    onClick={() => handleSelect(option.value)}
+                    className="w-full text-left font-mono text-sm tracking-wide py-2 px-3 transition-all duration-150 rounded-sm flex items-center"
+                    style={{
+                      color: isHovered ? "#2b2a28" : "#2b2a28/70",
+                      background: isHovered ? "#fdfaf5" : "transparent",
+                      fontWeight: isSelected ? 500 : 400,
+                    }}
+                  >
+                    <span className="text-[#b7a97a] select-none mr-2">
+                      {isSelected ? "●" : "○"}
+                    </span>
+                    <span>{option.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </motion.div>
         )}

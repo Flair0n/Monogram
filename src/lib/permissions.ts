@@ -6,14 +6,15 @@
  */
 
 export type UserRole = 'leader' | 'curator' | 'member';
+export type SubscriptionRole = 'FREE' | 'PREMIUM' | 'ADMIN';
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
-  spacesJoined: string[];
-  createdAt: string;
+  role: UserRole | SubscriptionRole; // Support both role types
+  spacesJoined?: string[];
+  createdAt?: string;
 }
 
 export interface Space {
@@ -29,10 +30,11 @@ export interface Space {
  */
 export const permissions = {
   /**
-   * Leaders can create new spaces
+   * All authenticated users can create spaces
    */
   canCreateSpace: (user: User): boolean => {
-    return user.role === 'leader';
+    // All users (FREE, PREMIUM, ADMIN) can create spaces
+    return true;
   },
 
   /**
@@ -109,7 +111,7 @@ export const permissions = {
  * Permission messages for tooltips/disabled states
  */
 export const permissionMessages = {
-  canCreateSpace: 'Only leaders can create new spaces',
+  canCreateSpace: 'Sign in to create a new space',
   canEditSpace: 'Only leaders and curators can edit this space',
   canManageMembers: 'Only leaders can manage members',
   canSetQuestions: 'Only leaders and curators can set questions',
