@@ -52,7 +52,12 @@ export function ProfileHeader() {
           </div>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72 mt-2 z-[100] p-2" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
+      <DropdownMenuContent 
+        align="end" 
+        className="w-72 mt-2 z-[100] p-2" 
+        style={{ backgroundColor: '#fdfaf5', opacity: 1 }}
+        onCloseAutoFocus={(e: Event) => e.preventDefault()}
+      >
         <DropdownMenuLabel className="py-4 px-3">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-sage/10 border-2 border-sage/20 flex items-center justify-center">
