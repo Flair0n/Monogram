@@ -3,6 +3,7 @@
 ## Overview
 
 Prisma is configured to work seamlessly with Supabase PostgreSQL. This setup provides:
+
 - Type-safe database queries
 - Auto-completion in your IDE
 - Automatic schema migrations
@@ -25,7 +26,8 @@ DATABASE_URL=postgresql://postgres:[YOUR-PASSWORD]@db.your-project-id.supabase.c
 DIRECT_URL=postgresql://postgres:[YOUR-PASSWORD]@db.your-project-id.supabase.co:5432/postgres
 ```
 
-**Important:** 
+**Important:**
+
 - `DATABASE_URL` - Uses connection pooler (port 6543 for Supabase)
 - `DIRECT_URL` - Direct connection (port 5432) for migrations
 
@@ -43,11 +45,13 @@ This creates the Prisma Client based on your schema.
 ### 4. Sync Schema with Database
 
 **Option A: Push Schema (Recommended for Development)**
+
 ```powershell
 npm run prisma:push
 ```
 
 **Option B: Create Migration (Recommended for Production)**
+
 ```powershell
 npm run prisma:migrate
 ```
@@ -57,13 +61,14 @@ npm run prisma:migrate
 ### Import Prisma Client
 
 ```typescript
-import { prisma } from '@/lib/prisma';
-import type { User, Space } from '@/lib/prisma';
+import { prisma } from "@/lib/prisma";
+import type { User, Space } from "@/lib/prisma";
 ```
 
 ### Example Queries
 
 #### Create a Space
+
 ```typescript
 const space = await prisma.space.create({
   data: {
@@ -76,6 +81,7 @@ const space = await prisma.space.create({
 ```
 
 #### Find User with Relations
+
 ```typescript
 const user = await prisma.user.findUnique({
   where: { id: userId },
@@ -92,6 +98,7 @@ const user = await prisma.user.findUnique({
 ```
 
 #### Get Space Members
+
 ```typescript
 const members = await prisma.membership.findMany({
   where: { spaceId },
@@ -109,6 +116,7 @@ const members = await prisma.membership.findMany({
 ```
 
 #### Create Response
+
 ```typescript
 const response = await prisma.response.create({
   data: {
@@ -121,6 +129,7 @@ const response = await prisma.response.create({
 ```
 
 #### Update Settings
+
 ```typescript
 await prisma.settings.update({
   where: { userId },
@@ -190,12 +199,15 @@ npm run prisma:generate
 ### Using Both Supabase and Prisma
 
 You can use both together:
+
 - **Supabase Client** - For auth, realtime, storage
 - **Prisma** - For type-safe database queries
 
 ```typescript
 // Authentication with Supabase
-const { data: { user } } = await supabase.auth.getUser();
+const {
+  data: { user },
+} = await supabase.auth.getUser();
 
 // Database queries with Prisma
 const userProfile = await prisma.user.findUnique({
@@ -212,6 +224,7 @@ npm run prisma:studio
 ```
 
 Great for:
+
 - Viewing data
 - Editing records
 - Testing queries
@@ -220,15 +233,17 @@ Great for:
 ## Type Safety Benefits
 
 ### Auto-completion
+
 ```typescript
 const space = await prisma.space.create({
   data: {
     // IDE suggests: name, description, creatorId, etc.
-  }
+  },
 });
 ```
 
 ### Type-safe Queries
+
 ```typescript
 // TypeScript knows the exact shape of the result
 const user: User & { createdSpaces: Space[] } = await prisma.user.findUnique({
@@ -238,16 +253,18 @@ const user: User & { createdSpaces: Space[] } = await prisma.user.findUnique({
 ```
 
 ### Compile-time Errors
+
 ```typescript
 // This will error at compile time
 await prisma.user.findUnique({
-  where: { invalidField: "value" } // ❌ Error
+  where: { invalidField: "value" }, // ❌ Error
 });
 ```
 
 ## Migration Workflow
 
 ### Development
+
 ```powershell
 # Make schema changes in schema.prisma
 # Push directly to database
@@ -255,6 +272,7 @@ npm run prisma:push
 ```
 
 ### Production
+
 ```powershell
 # Create migration
 npm run prisma:migrate
@@ -266,11 +284,13 @@ npx prisma migrate deploy
 ## Best Practices
 
 1. **Always generate after schema changes**
+
    ```powershell
    npm run prisma:generate
    ```
 
 2. **Use transactions for related operations**
+
    ```typescript
    await prisma.$transaction([
      prisma.space.create({ data: spaceData }),
@@ -279,6 +299,7 @@ npx prisma migrate deploy
    ```
 
 3. **Select only needed fields**
+
    ```typescript
    const users = await prisma.user.findMany({
      select: { id: true, name: true, email: true },
@@ -286,6 +307,7 @@ npx prisma migrate deploy
    ```
 
 4. **Use pagination for large datasets**
+
    ```typescript
    const responses = await prisma.response.findMany({
      skip: page * pageSize,
@@ -298,7 +320,7 @@ npx prisma migrate deploy
    try {
      await prisma.user.create({ data });
    } catch (error) {
-     if (error.code === 'P2002') {
+     if (error.code === "P2002") {
        // Unique constraint violation
      }
    }
@@ -307,17 +329,20 @@ npx prisma migrate deploy
 ## Troubleshooting
 
 ### "Can't reach database server"
+
 - Check `DATABASE_URL` in `.env.local`
 - Verify Supabase project is running
 - Check firewall/network settings
 
 ### Schema out of sync
+
 ```powershell
 # Reset and resync
 npm run prisma:push --force-reset
 ```
 
 ### Client out of date
+
 ```powershell
 # Regenerate client
 npm run prisma:generate

@@ -18,21 +18,25 @@ Complete environment configuration has been created for the Monogram MVP.
 ## 🚀 Quick Start
 
 1. **Copy environment template:**
+
    ```powershell
    Copy-Item .env.example .env.local
    ```
 
 2. **Get Supabase credentials:**
+
    - Visit [Supabase Dashboard](https://supabase.com/dashboard)
    - Select your project → Settings → API
    - Copy credentials to `.env.local`
 
 3. **Install dependencies:**
+
    ```powershell
    npm install
    ```
 
 4. **Set up database:**
+
    - Go to Supabase SQL Editor
    - Run the contents of `supabase/schema.sql`
 
@@ -44,6 +48,7 @@ Complete environment configuration has been created for the Monogram MVP.
 ## 📋 What's Included
 
 ### Environment Variables
+
 - ✅ Supabase URL and keys (anon + service role)
 - ✅ Application URLs (dev + production)
 - ✅ JWT secrets and CORS configuration
@@ -54,6 +59,7 @@ Complete environment configuration has been created for the Monogram MVP.
 - ✅ Rate limiting and quotas
 
 ### Database Schema
+
 - ✅ Users table (extends auth.users)
 - ✅ Spaces, memberships, prompts, responses
 - ✅ Settings with theme and notification preferences
@@ -63,12 +69,14 @@ Complete environment configuration has been created for the Monogram MVP.
 - ✅ Storage buckets (avatars, exports, badges)
 
 ### Type Safety
+
 - ✅ TypeScript definitions for all env variables
 - ✅ Database type generation support
 - ✅ Type-safe API client
 - ✅ Storage utilities with validation
 
 ### Security
+
 - ✅ Only `VITE_` prefixed variables exposed to frontend
 - ✅ Service role key server-side only
 - ✅ RLS policies on all tables
@@ -78,6 +86,7 @@ Complete environment configuration has been created for the Monogram MVP.
 ## 📖 Documentation
 
 See **`ENV_SETUP.md`** for:
+
 - Complete setup instructions
 - Database schema details
 - RLS policy explanations
@@ -90,7 +99,7 @@ See **`ENV_SETUP.md`** for:
 Import environment variables in your code:
 
 ```typescript
-import { supabase, app, features, storage } from '@/config/env';
+import { supabase, app, features, storage } from "@/config/env";
 
 // Use Supabase
 console.log(supabase.url);

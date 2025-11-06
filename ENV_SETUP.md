@@ -3,11 +3,13 @@
 ## Quick Start
 
 1. **Copy the example file:**
+
    ```bash
    cp .env.example .env.local
    ```
 
 2. **Get your Supabase credentials:**
+
    - Go to [Supabase Dashboard](https://supabase.com/dashboard)
    - Select your project
    - Navigate to Settings > API
@@ -242,10 +244,10 @@ BEGIN
     NEW.email,
     'free'
   );
-  
+
   INSERT INTO public.settings (user_id)
   VALUES (NEW.id);
-  
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -321,6 +323,7 @@ supabase gen types typescript --local > src/types/database.types.ts
 ### Debug Mode
 
 Enable debug logging:
+
 ```bash
 VITE_DEBUG=true npm run dev
 ```
