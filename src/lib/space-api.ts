@@ -254,6 +254,7 @@ export async function createPrompt(data: {
   weekNumber: number;
   question: string;
   order: number;
+  responseType?: 'TEXT' | 'IMAGE';
   imageUrl?: string;
   musicUrl?: string;
   isPublished?: boolean;
@@ -268,6 +269,7 @@ export async function createPrompt(data: {
       week_number: data.weekNumber,
       question: data.question,
       order: data.order,
+      response_type: data.responseType || 'TEXT',
       image_url: data.imageUrl || null,
       music_url: data.musicUrl || null,
       is_published: data.isPublished ?? true,
@@ -459,4 +461,138 @@ export async function leaveSpace(spaceId: string, userId: string): Promise<void>
     .eq('user_id', userId);
 
   if (error) throw error;
+}
+
+/**
+ * Get all responses for a specific week (for curator review)
+ */
+export async function getWeekResponses(spaceId: string, weekNumber: number) {
+  // Get all prompts for the week
+  const { data: prompts, error: promptsError } = await supabase
+    .from('prompts')
+    .select('id')
+    .eq('space_id', spaceId)
+    .eq('week_number', weekNumber)
+    .eq('is_published', true);
+
+  if (promptsError) throw promptsError;
+
+  const promptIds = prompts?.map(p => p.id) || [];
+
+  if (promptIds.length === 0) {
+    return [];
+  }
+
+  // Get all responses for these prompts
+  const { data: responses, error: responsesError } = await supabase
+    .from('responses')
+    .select(`
+      *,
+      user:users(id, name, avatar_url),
+      prompt:prompts(id, question, response_type)
+    `)
+    .in('prompt_id', promptIds)
+    .eq('is_draft', false)
+    .order('created_at', { ascending: false });
+
+  if (responsesError) throw responsesError;
+
+  return responses || [];
+}
+
+/**
+ * Get member submission status for the week
+ */
+export async function getWeekSubmissionStatus(spaceId: string, weekNumber: number) {
+  // Get all members
+  const { data: members, error: membersError } = await supabase
+    .from('memberships')
+    .select(`
+      user_id,
+      user:users!memberships_user_id_fkey(id, name, avatar_url)
+    `)
+    .eq('space_id', spaceId);
+
+  if (membersError) throw membersError;
+
+  // Get all prompts for the week
+  const { data: prompts, error: promptsError } = await supabase
+    .from('prompts')
+    .select('id')
+    .eq('space_id', spaceId)
+    .eq('week_number', weekNumber)
+    .eq('is_published', true);
+
+  if (promptsError) throw promptsError;
+
+  const promptIds = prompts?.map(p => p.id) || [];
+
+  // Get all responses for the week
+  const { data: responses, error: responsesError } = await supabase
+    .from('responses')
+    .select('user_id, prompt_id, created_at')
+    .in('prompt_id', promptIds)
+    .eq('is_draft', false);
+
+  if (responsesError) throw responsesError;
+
+  // Calculate submission status for each member
+  const submissionStatus = members?.map(member => {
+    const userResponses = responses?.filter(r => r.user_id === member.user_id) || [];
+    const hasSubmitted = userResponses.length > 0;
+    const responseCount = userResponses.length;
+    const lastSubmission = userResponses.length > 0 
+      ? new Date(Math.max(...userResponses.map(r => new Date(r.created_at).getTime())))
+      : null;
+
+    // Handle user data (could be object or array from Supabase)
+    const userData = Array.isArray(member.user) ? member.user[0] : member.user;
+
+    return {
+      userId: member.user_id,
+      userName: userData?.name || 'Unknown',
+      avatarUrl: userData?.avatar_url || null,
+      hasSubmitted,
+      responseCount,
+      totalPrompts: promptIds.length,
+      lastSubmission,
+    };
+  }) || [];
+
+  return submissionStatus;
+}
+
+/**
+ * Publish week and create newsletter draft
+ */
+export async function publishWeek(spaceId: string, weekNumber: number) {
+  const now = new Date().toISOString();
+
+  // Update space to mark week as published
+  const { error: spaceError } = await supabase
+    .from('spaces')
+    .update({
+      is_published: true,
+      updated_at: now,
+    })
+    .eq('id', spaceId);
+
+  if (spaceError) throw spaceError;
+
+  // Create newsletter draft entry
+  const { data: newsletter, error: newsletterError } = await supabase
+    .from('newsletters')
+    .insert({
+      space_id: spaceId,
+      week_number: weekNumber,
+      status: 'DRAFT',
+      created_at: now,
+      updated_at: now,
+    })
+    .select()
+    .single();
+
+  if (newsletterError) throw newsletterError;
+
+  return newsletter;
 }

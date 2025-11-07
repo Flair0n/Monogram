@@ -36,7 +36,9 @@ import {
   Copy,
   Send,
   UserPlus,
-  Trash2
+  Trash2,
+  Image,
+  Plus
 } from "lucide-react";
 import { MainLayout } from "../components/layouts/MainLayout";
 import { useSpace } from "../contexts/SpaceContext";
@@ -52,8 +54,11 @@ import {
   getArchivedWeeks,
   createPrompt,
   deletePrompt,
+  getWeekSubmissionStatus,
+  publishWeek,
   type SpaceWithDetails 
 } from "../lib/space-api";
+import { supabase } from "../lib/supabase";
 
 // Mock data - will be replaced with actual data from Supabase
 const mockSpacesData: Record<string, any> = {
@@ -237,7 +242,7 @@ export function SpaceDashboard() {
   const navigate = useNavigate();
   const { setCurrentSpace } = useSpace();
   const { user } = useAuth();
-  const [activeNav, setActiveNav] = useState<"thisweek" | "responses" | "members" | "archive">("thisweek");
+  const [activeNav, setActiveNav] = useState<"thisweek" | "responses" | "members" | "archive" | "review">("thisweek");
   
   // Real data state
   const [space, setSpace] = useState<SpaceWithDetails | null>(null);
@@ -253,10 +258,12 @@ export function SpaceDashboard() {
   
   // This Week reflection state
   const [currentWeekReflections, setCurrentWeekReflections] = useState<{
-    [promptIndex: number]: { content: string; isDraft: boolean; savedAt?: string }
+    [promptIndex: number]: { content: string; imageUrl?: string; isDraft: boolean; savedAt?: string }
   }>({});
   const [activePromptIndex, setActivePromptIndex] = useState(0);
   const [reflectionContent, setReflectionContent] = useState("");
+  const [reflectionImage, setReflectionImage] = useState<File | null>(null);
+  const [reflectionImagePreview, setReflectionImagePreview] = useState<string>("");
   const [isEditingReflection, setIsEditingReflection] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   
@@ -273,11 +280,21 @@ export function SpaceDashboard() {
   const [exportInlineOpen, setExportInlineOpen] = useState(false);
   
   // Curator prompt creation state
+  const [promptType, setPromptType] = useState<"text" | "image">("text");
   const [newPromptText, setNewPromptText] = useState("");
+  const [newPromptCaption, setNewPromptCaption] = useState("");
+  const [newPromptImage, setNewPromptImage] = useState<File | null>(null);
+  const [newPromptImagePreview, setNewPromptImagePreview] = useState<string>("");
+  const [showPromptForm, setShowPromptForm] = useState(false);
   const [isAddingPrompt, setIsAddingPrompt] = useState(false);
   const [promptToDelete, setPromptToDelete] = useState<{ id: string; question: string } | null>(null);
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  
+  // Review & Publish state
+  const [submissionStatus, setSubmissionStatus] = useState<any[]>([]);
+  const [showPublishWeekDialog, setShowPublishWeekDialog] = useState(false);
+  const [isPublishingWeek, setIsPublishingWeek] = useState(false);
 
   // Handle escape key for dialogs
   useEffect(() => {
@@ -285,12 +302,13 @@ export function SpaceDashboard() {
       if (e.key === 'Escape') {
         if (promptToDelete) setPromptToDelete(null);
         if (showPublishDialog && !isPublishing) setShowPublishDialog(false);
+        if (showPublishWeekDialog && !isPublishingWeek) setShowPublishWeekDialog(false);
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [promptToDelete, showPublishDialog, isPublishing]);
+  }, [promptToDelete, showPublishDialog, isPublishing, showPublishWeekDialog, isPublishingWeek]);
 
   // Load space data
   useEffect(() => {
@@ -327,6 +345,12 @@ export function SpaceDashboard() {
           // Load archived weeks
           const archivedData = await getArchivedWeeks(spaceData.id, spaceData.current_week, user.id);
           setArchivedWeeks(archivedData);
+
+          // Load submission status if user is curator or leader
+          if (user.id === spaceData.current_curator_id || user.id === spaceData.leader_id) {
+            const statusData = await getWeekSubmissionStatus(spaceData.id, spaceData.current_week);
+            setSubmissionStatus(statusData);
+          }
 
           // Set current space context
           setCurrentSpace({
@@ -391,12 +415,39 @@ export function SpaceDashboard() {
 
     try {
       const prompt = prompts[activePromptIndex];
+      let imageUrl: string | undefined = undefined;
+      
+      // Upload image if this is an image response type
+      if (prompt.response_type === 'IMAGE' && reflectionImage && space) {
+        const fileExt = reflectionImage.name.split('.').pop();
+        const fileName = `${space.id}/${user.id}/${Date.now()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('response-images')
+          .upload(fileName, reflectionImage, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) {
+          console.error('Error uploading image:', uploadError);
+          throw uploadError;
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('response-images')
+          .getPublicUrl(fileName);
+        
+        imageUrl = publicUrl;
+      }
       
       // Submit to database
       await submitResponse({
         promptId: prompt.id,
         userId: user.id,
         content: reflectionContent,
+        imageUrl: imageUrl,
         isDraft: false,
       });
 
@@ -405,6 +456,7 @@ export function SpaceDashboard() {
         ...prev,
         [activePromptIndex]: {
           content: reflectionContent,
+          imageUrl: imageUrl,
           isDraft: false,
           savedAt: new Date().toISOString()
         }
@@ -418,6 +470,8 @@ export function SpaceDashboard() {
 
       // Clear current reflection and show success
       setReflectionContent("");
+      setReflectionImage(null);
+      setReflectionImagePreview("");
       setIsEditingReflection(false);
 
       // Switch to My Responses tab after a short delay
@@ -492,6 +546,40 @@ export function SpaceDashboard() {
     }, 1500);
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setNewPromptImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewPromptImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setNewPromptImage(null);
+    setNewPromptImagePreview("");
+  };
+
+  const handleResponseImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setReflectionImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setReflectionImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveResponseImage = () => {
+    setReflectionImage(null);
+    setReflectionImagePreview("");
+  };
+
   const handleAddPrompt = async () => {
     if (!user || !space || !newPromptText.trim()) return;
 
@@ -504,6 +592,7 @@ export function SpaceDashboard() {
         weekNumber: space.current_week,
         question: newPromptText.trim(),
         order: prompts.length + 1,
+        responseType: promptType === "text" ? "TEXT" : "IMAGE",
         isPublished: true,
       });
 
@@ -511,7 +600,13 @@ export function SpaceDashboard() {
       const promptsData = await getCurrentWeekPrompts(space.id, space.current_week);
       setPrompts(promptsData);
       
+      // Reset form
+      setPromptType("text");
       setNewPromptText("");
+      setNewPromptCaption("");
+      setNewPromptImage(null);
+      setNewPromptImagePreview("");
+      setShowPromptForm(false);
     } catch (error) {
       console.error('Error adding prompt:', error);
     } finally {
@@ -561,6 +656,33 @@ export function SpaceDashboard() {
     }
   };
 
+  const handlePublishWeek = async () => {
+    if (!space) return;
+
+    try {
+      setIsPublishingWeek(true);
+      
+      await publishWeek(space.id, space.current_week);
+      
+      // Reload space data to reflect published status
+      const spaceData = await getSpaceByName(decodeURIComponent(spaceName!));
+      if (spaceData) {
+        setSpace(spaceData);
+      }
+      
+      setShowPublishWeekDialog(false);
+      
+      // Switch to archive tab to show the published week
+      setTimeout(() => {
+        setActiveNav("archive");
+      }, 1000);
+    } catch (error) {
+      console.error('Error publishing week:', error);
+    } finally {
+      setIsPublishingWeek(false);
+    }
+  };
+
   // Show loading state
   if (loading || !space) {
     return (
@@ -605,6 +727,19 @@ export function SpaceDashboard() {
               active={activeNav === "archive"}
               onClick={() => setActiveNav("archive")}
             />
+            
+            {/* Review & Publish - Only for Curator and Leader */}
+            {(user?.id === space.current_curator_id || user?.id === space.leader_id) && (
+              <>
+                <Separator className="my-4" />
+                <NavItem
+                  icon="[✓]"
+                  label="Review & Publish"
+                  active={activeNav === "review"}
+                  onClick={() => setActiveNav("review")}
+                />
+              </>
+            )}
             
             <Separator className="my-4" />
             
@@ -667,30 +802,96 @@ export function SpaceDashboard() {
                       
                       {prompts.length < 10 && (
                         <div className="space-y-3">
-                          <Input
-                            placeholder="Enter a prompt question..."
-                            value={newPromptText}
-                            onChange={(e) => setNewPromptText(e.target.value)}
-                            onKeyDown={async (e) => {
-                              if (e.key === 'Enter' && newPromptText.trim()) {
-                                await handleAddPrompt();
-                              }
-                            }}
-                            className="bg-background"
-                          />
-                          <div className="flex gap-2">
+                          {!showPromptForm ? (
                             <Button
-                              size="sm"
-                              onClick={handleAddPrompt}
-                              disabled={!newPromptText.trim() || isAddingPrompt}
-                              className="gap-2"
+                              onClick={() => setShowPromptForm(true)}
+                              variant="outline"
+                              className="w-full gap-2 border-sage/30 hover:bg-sage/10"
                             >
-                              <PenLine className="w-4 h-4" />
-                              {isAddingPrompt ? 'Adding...' : 'Add Prompt'}
+                              <Plus className="w-4 h-4" />
+                              Add New Prompt
                             </Button>
-                            <span className="text-xs text-muted-foreground self-center">
-                              {prompts.length}/10 prompts
-                            </span>
+                          ) : (
+                            <div className="space-y-4 p-4 border border-sage/20 rounded-lg bg-background">
+                              {/* Response Type Selector */}
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium">Response Type</Label>
+                                <p className="text-xs text-muted-foreground mb-2">How should members respond to this prompt?</p>
+                                <div className="flex gap-2">
+                                  <Button
+                                    type="button"
+                                    variant={promptType === "text" ? "default" : "outline"}
+                                    onClick={() => setPromptType("text")}
+                                    className="flex-1 gap-2"
+                                  >
+                                    <FileText className="w-4 h-4" />
+                                    Text Response
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant={promptType === "image" ? "default" : "outline"}
+                                    onClick={() => setPromptType("image")}
+                                    className="flex-1 gap-2"
+                                  >
+                                    <Image className="w-4 h-4" />
+                                    Image + Caption
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {/* Prompt Question (for both types) */}
+                              <div className="space-y-2">
+                                <Label htmlFor="prompt-question" className="text-sm">
+                                  Prompt Question
+                                </Label>
+                                <Textarea
+                                  id="prompt-question"
+                                  placeholder={
+                                    promptType === "text" 
+                                      ? "Enter a thought-provoking question..." 
+                                      : "e.g., Share an image that represents your week"
+                                  }
+                                  value={newPromptText}
+                                  onChange={(e) => setNewPromptText(e.target.value)}
+                                  className="min-h-[100px] resize-none"
+                                  autoFocus
+                                />
+                                {promptType === "image" && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Members will upload an image with a one-line caption
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="flex gap-2 pt-2">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => {
+                                    setShowPromptForm(false);
+                                    setPromptType("text");
+                                    setNewPromptText("");
+                                    setNewPromptCaption("");
+                                    setNewPromptImage(null);
+                                    setNewPromptImagePreview("");
+                                  }}
+                                  className="flex-1"
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  onClick={handleAddPrompt}
+                                  disabled={isAddingPrompt || !newPromptText.trim()}
+                                  className="flex-1 gap-2 bg-sage hover:bg-sage/90 text-cream"
+                                >
+                                  <PenLine className="w-4 h-4" />
+                                  {isAddingPrompt ? 'Adding...' : 'Add Prompt'}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{prompts.length}/10 prompts created</span>
                           </div>
                         </div>
                       )}
@@ -745,9 +946,18 @@ export function SpaceDashboard() {
                                   <span className="text-sm font-mono">{index + 1}</span>
                                 </div>
                                 <div className="flex-1">
-                                  <p className="font-serif text-xl mb-2">{prompt.question}</p>
+                                  <div className="flex items-start gap-2 mb-3">
+                                    <p className="font-serif text-xl flex-1">{prompt.question}</p>
+                                    {prompt.response_type === 'IMAGE' && (
+                                      <Badge variant="outline" className="text-xs gap-1 shrink-0">
+                                        <Image className="w-3 h-3" />
+                                        Image Response
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  
                                   {saved && !isEditing && (
-                                    <div className="flex items-center gap-2 mt-2">
+                                    <div className="flex items-center gap-2 mt-4">
                                       <Badge 
                                         variant={saved.isDraft ? "secondary" : "default"}
                                         className="text-xs"
@@ -797,22 +1007,87 @@ export function SpaceDashboard() {
                             {isEditing ? (
                               // Edit Mode
                               <div className="space-y-6">
-                                <Textarea
-                                  value={reflectionContent}
-                                  onChange={(e) => setReflectionContent(e.target.value)}
-                                  placeholder="Start your reflection here…
+                                {/* Image Response Type */}
+                                {prompt.response_type === 'IMAGE' ? (
+                                  <div className="space-y-4">
+                                    {/* Image Upload */}
+                                    <div className="space-y-2">
+                                      {reflectionImagePreview ? (
+                                        <div className="relative">
+                                          <img 
+                                            src={reflectionImagePreview} 
+                                            alt="Response" 
+                                            className="w-full max-h-96 object-cover rounded-lg border border-border"
+                                          />
+                                          <Button
+                                            size="sm"
+                                            variant="destructive"
+                                            onClick={handleRemoveResponseImage}
+                                            className="absolute top-2 right-2 gap-2"
+                                          >
+                                            <X className="w-4 h-4" />
+                                            Remove
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <div className="relative">
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleResponseImageSelect}
+                                            className="hidden"
+                                            id="response-image-upload"
+                                          />
+                                          <label
+                                            htmlFor="response-image-upload"
+                                            className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                                          >
+                                            <Image className="w-12 h-12 text-muted-foreground mb-3" />
+                                            <span className="text-sm text-muted-foreground font-medium">Click to upload your image</span>
+                                            <span className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</span>
+                                          </label>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Caption Input */}
+                                    <div className="space-y-2">
+                                      <Label htmlFor="image-caption" className="text-sm">Caption (one line)</Label>
+                                      <Input
+                                        id="image-caption"
+                                        value={reflectionContent}
+                                        onChange={(e) => setReflectionContent(e.target.value)}
+                                        placeholder="Add a short caption for your image..."
+                                        maxLength={150}
+                                        className="text-base"
+                                      />
+                                      <p className="text-xs text-muted-foreground">
+                                        {reflectionContent.length}/150 characters
+                                      </p>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  /* Text Response Type */
+                                  <Textarea
+                                    value={reflectionContent}
+                                    onChange={(e) => setReflectionContent(e.target.value)}
+                                    placeholder="Start your reflection here…
 
 Press enter to begin a new paragraph. Write freely—this is your space to think, explore, and reflect on the week's experiences."
-                                  className="min-h-[300px] text-base leading-relaxed resize-none border-0 focus:ring-0 focus:outline-none shadow-none p-0 font-serif placeholder:text-muted-foreground/40 placeholder:italic bg-transparent"
-                                  style={{ lineHeight: '1.8' }}
-                                  autoFocus
-                                />
+                                    className="min-h-[300px] text-base leading-relaxed resize-none border-0 focus:ring-0 focus:outline-none shadow-none p-0 font-serif placeholder:text-muted-foreground/40 placeholder:italic bg-transparent"
+                                    style={{ lineHeight: '1.8' }}
+                                    autoFocus
+                                  />
+                                )}
 
                                 {/* Edit Footer */}
                                 <div className="pt-4 border-t border-black/10 flex items-center justify-between">
                                   <div className="flex items-center gap-4">
                                     <div className="text-sm text-muted-foreground">
-                                      {reflectionContent.split(/\s+/).filter(w => w.length > 0).length} words
+                                      {prompt.response_type === 'IMAGE' 
+                                        ? `${reflectionContent.length}/150 characters`
+                                        : `${reflectionContent.split(/\s+/).filter(w => w.length > 0).length} words`
+                                      }
                                     </div>
                                     
                                     {/* Save Success Message */}
@@ -837,6 +1112,8 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                                       onClick={() => {
                                         setIsEditingReflection(false);
                                         setReflectionContent("");
+                                        setReflectionImage(null);
+                                        setReflectionImagePreview("");
                                       }}
                                       className="gap-2 border-black/20 hover:bg-black/5"
                                     >
@@ -846,7 +1123,11 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                                     <Button
                                       variant="outline"
                                       onClick={handleSaveDraft}
-                                      disabled={!reflectionContent.trim()}
+                                      disabled={
+                                        prompt.response_type === 'IMAGE' 
+                                          ? (!reflectionImage || !reflectionContent.trim())
+                                          : !reflectionContent.trim()
+                                      }
                                       className="gap-2 border-black/20 hover:bg-cream/30 hover:border-black/30 disabled:opacity-40 shadow-sm"
                                     >
                                       <FileText className="w-4 h-4" strokeWidth={1.5} />
@@ -854,7 +1135,11 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                                     </Button>
                                     <Button
                                       onClick={handlePublish}
-                                      disabled={!reflectionContent.trim()}
+                                      disabled={
+                                        prompt.response_type === 'IMAGE' 
+                                          ? (!reflectionImage || !reflectionContent.trim())
+                                          : !reflectionContent.trim()
+                                      }
                                       className="gap-2 bg-sage hover:bg-sage/90 text-cream disabled:opacity-40 shadow-md"
                                     >
                                       <Check className="w-4 h-4" strokeWidth={1.5} />
@@ -1191,6 +1476,149 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                   )}
 
                   <ExportWritings spaceName={space.name} className="w-full mt-6" />
+                </motion.div>
+              )}
+
+              {activeNav === "review" && (
+                <motion.div
+                  key="review"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <div className="mb-8">
+                    <h1 className="mb-2 font-serif italic" style={{ fontFamily: "'Victor Mono', monospace" }}>
+                      Review & Publish
+                    </h1>
+                    <p className="text-muted-foreground">
+                      Week {space.current_week} submission status
+                      <span className="cursor-blink inline-block ml-1">|</span>
+                    </p>
+                  </div>
+
+                  {/* Summary Stats */}
+                  <Card className="p-6 mb-6 paper-texture bg-cream/30 border-black/10">
+                    <div className="font-mono text-sm space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">&gt; Total Members:</span>
+                        <span className="font-medium">{submissionStatus.length}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">&gt; Submitted:</span>
+                        <span className="font-medium text-sage">
+                          {submissionStatus.filter(s => s.hasSubmitted).length}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">&gt; Pending:</span>
+                        <span className="font-medium text-terracotta">
+                          {submissionStatus.filter(s => !s.hasSubmitted).length}
+                        </span>
+                      </div>
+                      <Separator className="my-3" />
+                      <div className="flex items-center justify-between text-base">
+                        <span className="text-muted-foreground">&gt; Completion Rate:</span>
+                        <span className="font-medium">
+                          {submissionStatus.length > 0 
+                            ? Math.round((submissionStatus.filter(s => s.hasSubmitted).length / submissionStatus.length) * 100)
+                            : 0}%
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Submission Status Table */}
+                  <Card className="paper-texture bg-cream/20 border-black/10 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full font-mono text-sm">
+                        <thead className="bg-black/5 border-b border-black/10">
+                          <tr>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Member</th>
+                            <th className="text-center py-3 px-4 font-medium text-muted-foreground">Status</th>
+                            <th className="text-center py-3 px-4 font-medium text-muted-foreground">Responses</th>
+                            <th className="text-right py-3 px-4 font-medium text-muted-foreground">Last Activity</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-black/5">
+                          {submissionStatus.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="text-center py-8 text-muted-foreground">
+                                No members found
+                              </td>
+                            </tr>
+                          ) : (
+                            submissionStatus.map((status) => (
+                              <tr key={status.userId} className="hover:bg-black/5 transition-colors">
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-sage/10 flex items-center justify-center shrink-0">
+                                      {status.avatarUrl ? (
+                                        <img 
+                                          src={status.avatarUrl} 
+                                          alt={status.userName} 
+                                          className="w-full h-full rounded-full object-cover" 
+                                        />
+                                      ) : (
+                                        <span className="text-xs font-medium text-sage">
+                                          {status.userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="font-medium">{status.userName}</span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  {status.hasSubmitted ? (
+                                    <Badge variant="default" className="bg-sage text-cream font-mono text-xs">
+                                      ✓ Answered
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="border-terracotta/30 text-terracotta font-mono text-xs">
+                                      ○ Pending
+                                    </Badge>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <span className="text-muted-foreground">
+                                    {status.responseCount}/{status.totalPrompts}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-right text-muted-foreground">
+                                  {status.lastSubmission 
+                                    ? new Date(status.lastSubmission).toLocaleDateString('en-US', { 
+                                        month: 'short', 
+                                        day: 'numeric',
+                                        hour: 'numeric',
+                                        minute: '2-digit'
+                                      })
+                                    : '—'
+                                  }
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+
+                  {/* Publish Week Button */}
+                  <div className="mt-8">
+                    <Button
+                      onClick={() => setShowPublishWeekDialog(true)}
+                      disabled={space.is_published}
+                      className="w-full gap-2 bg-sage hover:bg-sage/90 text-cream font-mono"
+                    >
+                      <Send className="w-4 h-4" />
+                      {space.is_published ? 'Week Already Published' : `Publish Week ${space.current_week}`}
+                    </Button>
+                    {!space.is_published && (
+                      <p className="text-xs text-muted-foreground mt-2 text-center font-mono">
+                        &gt; This will generate the newsletter draft and notify all members
+                      </p>
+                    )}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1636,6 +2064,121 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                     className="flex-1 px-4 py-2 text-sm bg-[#bfa67a] text-[#fdfaf5] rounded hover:bg-[#bfa67a]/90 transition-colors"
                   >
                     <span className="text-[#fdfaf5]">&gt;</span> run publish_prompts
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Publish Week Confirmation Dialog - Terminal Style */}
+      {showPublishWeekDialog && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center p-4" 
+          style={{ 
+            zIndex: 999999,
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            animation: 'fadeIn 0.3s ease-out forwards'
+          }}
+        >
+          {/* Click handler overlay */}
+          <div
+            className="absolute inset-0"
+            onClick={() => !isPublishingWeek && setShowPublishWeekDialog(false)}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+          />
+
+          {/* Terminal Window */}
+          <div
+            className="relative border-2 rounded-lg shadow-2xl w-full max-w-2xl font-mono"
+            style={{ 
+              fontFamily: "'IBM Plex Mono', monospace", 
+              zIndex: 1000000,
+              animation: 'fadeInScale 0.3s ease-out forwards',
+              backgroundColor: '#fdfaf5',
+              borderColor: 'rgba(42, 42, 42, 0.2)',
+              opacity: 1
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Terminal Header */}
+            <div 
+              className="px-4 py-3 rounded-t-lg flex items-center justify-between"
+              style={{ backgroundColor: '#2a2a2a', color: '#fdfaf5' }}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#ff5f56]"></div>
+                <div className="w-3 h-3 rounded-full bg-[#ffbd2e]"></div>
+                <div className="w-3 h-3 rounded-full bg-[#27c93f]"></div>
+                <span className="ml-3 text-sm opacity-70">publish_week.sh</span>
+              </div>
+              <button
+                onClick={() => !isPublishingWeek && setShowPublishWeekDialog(false)}
+                disabled={isPublishingWeek}
+                className="text-[#fdfaf5]/50 hover:text-[#fdfaf5] transition-colors text-sm disabled:opacity-30"
+              >
+                [ESC]
+              </button>
+            </div>
+
+            {/* Terminal Body */}
+            <div className="p-6 space-y-4" style={{ color: '#2a2a2a', backgroundColor: '#fdfaf5' }}>
+              {/* Confirmation Line */}
+              <div className="text-sm opacity-60 mb-4">
+                <span className="text-[#bfa67a]">&gt;</span> Confirm publish for Week {space?.current_week}?
+              </div>
+
+              {/* Summary */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-[#bfa67a]">&gt;</span>
+                  <span className="opacity-70">Space: {space?.name}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-[#bfa67a]">&gt;</span>
+                  <span className="opacity-70">
+                    Submissions: {submissionStatus.filter(s => s.hasSubmitted).length}/{submissionStatus.length} members
+                  </span>
+                </div>
+              </div>
+
+              {/* Info Message */}
+              <div className="ml-4 p-3 bg-[#bfa67a]/10 border border-[#bfa67a]/20 rounded">
+                <p className="text-xs text-[#2a2a2a]/70">
+                  This will mark the week as published and create a newsletter draft. All members will be notified.
+                </p>
+              </div>
+
+              {/* Status Messages */}
+              {isPublishingWeek && (
+                <div className="pt-2 text-sm text-[#bfa67a]">
+                  <div className="flex items-center gap-2">
+                    <span className="animate-pulse">●</span>
+                    <span>Publishing week and generating newsletter...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Command Buttons */}
+              {!isPublishingWeek && (
+                <div className="pt-4 flex gap-3">
+                  <button
+                    onClick={() => setShowPublishWeekDialog(false)}
+                    className="flex-1 px-4 py-2 text-sm border border-[#2a2a2a]/30 rounded hover:border-[#2a2a2a] transition-colors"
+                  >
+                    [ESC] Cancel
+                  </button>
+                  <button
+                    onClick={handlePublishWeek}
+                    className="flex-1 px-4 py-2 text-sm bg-[#bfa67a] text-[#fdfaf5] rounded hover:bg-[#bfa67a]/90 transition-colors"
+                  >
+                    <span className="text-[#fdfaf5]">&gt;</span> run publish_week
                   </button>
                 </div>
               )}

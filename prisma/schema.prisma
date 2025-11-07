@@ -125,8 +125,9 @@ model Prompt {
   weekNumber Int         @map("week_number")
   
   // Prompt content
-  question   String      @db.Text
-  order      Int         @default(0) // Order within the week (1-10)
+  question     String      @db.Text
+  order        Int         @default(0) // Order within the week (1-10)
+  responseType ResponseType @default(TEXT) @map("response_type") // What type of response is expected
   
   // Media attachments
   imageUrl   String?     @map("image_url")
@@ -433,6 +434,13 @@ enum MediaType {
   VIDEO
 
   @@map("media_type")
+}
+
+enum ResponseType {
+  TEXT  // Members write text responses
+  IMAGE // Members upload image with caption
+
+  @@map("response_type")
 }
 
 enum TransactionType {

@@ -98,6 +98,7 @@ CREATE TABLE prompts (
   -- Prompt content
   question TEXT NOT NULL,
   "order" INTEGER NOT NULL DEFAULT 0, -- Order within the week (1-10)
+  response_type TEXT NOT NULL DEFAULT 'TEXT' CHECK (response_type IN ('TEXT', 'IMAGE')), -- What type of response is expected
   
   -- Media attachments
   image_url TEXT,
