@@ -12,7 +12,7 @@ import { MainLayout } from "../components/layouts/MainLayout";
 import { useSpace } from "../contexts/SpaceContext";
 import { useAuth } from "../contexts/AuthContext";
 import { ExportWritings } from "../components/ExportWritings";
-import { getSpace, getSpaceByName, getSpaceMembers, updateSpace, type SpaceWithDetails } from "../lib/space-api";
+import { getSpaceByName, getSpaceMembers, updateSpace, inviteMember, removeMember, leaveSpace, type SpaceWithDetails } from "../lib/space-api";
 
 export function SpaceSettingsPage() {
   const { spaceName } = useParams<{ spaceName: string }>();
@@ -306,11 +306,18 @@ export function SpaceSettingsPage() {
                           </Button>
                           <Button
                             size="sm"
-                            onClick={() => {
-                              // Handle invite logic here
-                              console.log("Inviting:", inviteEmail);
-                              setInviteInlineOpen(false);
-                              setInviteEmail("");
+                            onClick={async () => {
+                              if (!space || !user) return;
+                              try {
+                                await inviteMember(space.id, inviteEmail, user.id);
+                                // Reload members
+                                const membersData = await getSpaceMembers(space.id);
+                                setMembers(membersData);
+                                setInviteInlineOpen(false);
+                                setInviteEmail("");
+                              } catch (error) {
+                                console.error('Error inviting member:', error);
+                              }
                             }}
                             className="flex-1 gap-2"
                             disabled={!inviteEmail}
@@ -400,11 +407,18 @@ export function SpaceSettingsPage() {
                                   <Button
                                     size="sm"
                                     variant="destructive"
-                                    onClick={() => {
-                                      // Handle remove logic here
-                                      console.log("Removing member:", member.user.name);
-                                      setMemberToRemove(null);
-                                      setRemoveConfirmText("");
+                                    onClick={async () => {
+                                      if (!space) return;
+                                      try {
+                                        await removeMember(space.id, member.user.id);
+                                        // Reload members
+                                        const membersData = await getSpaceMembers(space.id);
+                                        setMembers(membersData);
+                                        setMemberToRemove(null);
+                                        setRemoveConfirmText("");
+                                      } catch (error) {
+                                        console.error('Error removing member:', error);
+                                      }
                                     }}
                                     disabled={removeConfirmText !== `sudo rm ${member.user.name}`}
                                     className="gap-2"
@@ -508,7 +522,21 @@ export function SpaceSettingsPage() {
             <Card className="p-6 paper-texture border-destructive/50">
               <h3 className="mb-4 text-destructive">Danger Zone</h3>
               <div className="space-y-3">
-                <Button variant="outline" className="w-full justify-start gap-2 text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start gap-2 text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  onClick={async () => {
+                    if (!space || !user) return;
+                    if (window.confirm(`Are you sure you want to leave "${space.name}"? This action cannot be undone.`)) {
+                      try {
+                        await leaveSpace(space.id, user.id);
+                        navigate('/dashboard');
+                      } catch (error) {
+                        console.error('Error leaving space:', error);
+                      }
+                    }
+                  }}
+                >
                   <Trash2 className="w-4 h-4" />
                   Leave This Space
                 </Button>

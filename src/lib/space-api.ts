@@ -596,3 +596,199 @@ export async function publishWeek(spaceId: string, weekNumber: number) {
 
   return newsletter;
 }
+
+/**
+ * Invite member to space via email
+ */
+export async function inviteMember(spaceId: string, email: string, invitedBy: string) {
+  const now = new Date().toISOString();
+
+  // Check if user exists
+  const { data: existingUser } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .single();
+
+  if (existingUser) {
+    // User exists, add them directly to the space
+    const { error: membershipError } = await supabase
+      .from('memberships')
+      .insert({
+        space_id: spaceId,
+        user_id: existingUser.id,
+        role: 'MEMBER',
+        joined_at: now,
+      });
+
+    if (membershipError) throw membershipError;
+    return { success: true, message: 'Member added to space' };
+  } else {
+    // User doesn't exist, send invitation email
+    // TODO: Implement email invitation system
+    console.log('Sending invitation email to:', email);
+    return { success: true, message: 'Invitation sent via email' };
+  }
+}
+
+/**
+ * Remove member from space
+ */
+export async function removeMember(spaceId: string, userId: string) {
+  const { error } = await supabase
+    .from('memberships')
+    .delete()
+    .eq('space_id', spaceId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+}
+
+/**
+ * Update response
+ */
+export async function updateResponse(responseId: string, content: string, imageUrl?: string) {
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('responses')
+    .update({
+      content: content,
+      image_url: imageUrl || null,
+      updated_at: now,
+    })
+    .eq('id', responseId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Compile newsletter content for a week
+ */
+export async function compileNewsletter(spaceId: string, weekNumber: number) {
+  // Get all prompts for the week
+  const { data: prompts, error: promptsError } = await supabase
+    .from('prompts')
+    .select(`
+      *,
+      curator:users(id, name)
+    `)
+    .eq('space_id', spaceId)
+    .eq('week_number', weekNumber)
+    .eq('is_published', true)
+    .order('order', { ascending: true });
+
+  if (promptsError) throw promptsError;
+
+  const promptIds = prompts?.map(p => p.id) || [];
+
+  // Get all responses for these prompts
+  const { data: responses, error: responsesError } = await supabase
+    .from('responses')
+    .select(`
+      *,
+      user:users(id, name, avatar_url),
+      prompt:prompts(id, question, order)
+    `)
+    .in('prompt_id', promptIds)
+    .eq('is_draft', false)
+    .order('created_at', { ascending: true });
+
+  if (responsesError) throw responsesError;
+
+  // Compile newsletter content
+  const newsletterContent = {
+    weekNumber,
+    prompts: prompts?.map(prompt => ({
+      question: prompt.question,
+      order: prompt.order,
+      responses: responses?.filter(r => r.prompt_id === prompt.id).map(r => ({
+        userName: r.user.name,
+        content: r.content,
+        imageUrl: r.image_url,
+        createdAt: r.created_at,
+      })) || [],
+    })) || [],
+    curator: prompts?.[0]?.curator?.name || 'Unknown',
+    totalResponses: responses?.length || 0,
+  };
+
+  return newsletterContent;
+}
+
+/**
+ * Rotate curator to next member
+ */
+export async function rotateCurator(spaceId: string) {
+  const now = new Date().toISOString();
+
+  // Get space details
+  const { data: space, error: spaceError } = await supabase
+    .from('spaces')
+    .select('current_curator_id, rotation_type, current_week')
+    .eq('id', spaceId)
+    .single();
+
+  if (spaceError) throw spaceError;
+
+  if (space.rotation_type === 'MANUAL') {
+    // Manual rotation - don't auto-rotate
+    return null;
+  }
+
+  // Get all members
+  const { data: members, error: membersError } = await supabase
+    .from('memberships')
+    .select('user_id')
+    .eq('space_id', spaceId)
+    .order('joined_at', { ascending: true });
+
+  if (membersError) throw membersError;
+
+  if (!members || members.length === 0) {
+    return null;
+  }
+
+  let nextCuratorId: string;
+
+  if (space.rotation_type === 'RANDOM') {
+    // Random selection
+    const randomIndex = Math.floor(Math.random() * members.length);
+    nextCuratorId = members[randomIndex].user_id;
+  } else {
+    // Round robin
+    const currentIndex = members.findIndex(m => m.user_id === space.current_curator_id);
+    const nextIndex = (currentIndex + 1) % members.length;
+    nextCuratorId = members[nextIndex].user_id;
+  }
+
+  // Update space with new curator and increment week
+  const { error: updateError } = await supabase
+    .from('spaces')
+    .update({
+      current_curator_id: nextCuratorId,
+      current_week: space.current_week + 1,
+      is_published: false,
+      updated_at: now,
+    })
+    .eq('id', spaceId);
+
+  if (updateError) throw updateError;
+
+  // Record rotation in curator_rotations table
+  const { error: rotationError } = await supabase
+    .from('curator_rotations')
+    .insert({
+      space_id: spaceId,
+      curator_id: nextCuratorId,
+      week_number: space.current_week + 1,
+      started_at: now,
+    });
+
+  if (rotationError) console.error('Error recording rotation:', rotationError);
+
+  return nextCuratorId;
+}

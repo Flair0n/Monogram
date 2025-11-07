@@ -56,6 +56,7 @@ import {
   deletePrompt,
   getWeekSubmissionStatus,
   publishWeek,
+  updateResponse,
   type SpaceWithDetails 
 } from "../lib/space-api";
 import { supabase } from "../lib/supabase";
@@ -489,15 +490,22 @@ export function SpaceDashboard() {
     setEditedContent(content);
   };
 
-  const handleSaveResponse = (id: string) => {
-    setResponses(prev => prev.map(response => 
-      response.id === id 
-        ? { ...response, title: editedTitle, content: editedContent, wordCount: editedContent.split(/\s+/).filter(w => w.length > 0).length }
-        : response
-    ));
-    setEditingResponseId(null);
-    setEditedTitle("");
-    setEditedContent("");
+  const handleSaveResponse = async (id: string) => {
+    try {
+      await updateResponse(id, editedContent);
+      
+      // Reload responses
+      if (space && user) {
+        const responsesData = await getUserResponses(user.id, space.id);
+        setResponses(responsesData);
+      }
+      
+      setEditingResponseId(null);
+      setEditedTitle("");
+      setEditedContent("");
+    } catch (error) {
+      console.error('Error saving response:', error);
+    }
   };
 
   const handleCancelEdit = () => {
@@ -662,9 +670,16 @@ export function SpaceDashboard() {
     try {
       setIsPublishingWeek(true);
       
+      // Publish the week and create newsletter
       await publishWeek(space.id, space.current_week);
       
-      // Reload space data to reflect published status
+      // Auto-rotate curator if rotation type is not manual
+      if (space.rotation_type !== 'MANUAL') {
+        const { rotateCurator } = await import('../lib/space-api');
+        await rotateCurator(space.id);
+      }
+      
+      // Reload space data to reflect published status and new curator
       const spaceData = await getSpaceByName(decodeURIComponent(spaceName!));
       if (spaceData) {
         setSpace(spaceData);
