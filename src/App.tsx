@@ -12,6 +12,7 @@ import { SpaceOverview } from './pages/SpaceOverview';
 import { SpaceDashboard } from './pages/SpaceDashboard';
 import { SettingsPage } from './pages/SettingsPage';
 import { SpaceSettingsPage } from './pages/SpaceSettingsPage';
+import { SpotifyCallback } from './pages/SpotifyCallback';
 
 export default function App() {
   return (
@@ -88,6 +89,9 @@ export default function App() {
                   </ProtectedRoute>
                 } 
               />
+
+              {/* Spotify OAuth Callback */}
+              <Route path="/auth/spotify/callback" element={<SpotifyCallback />} />
 
               {/* Catch all - redirect to home */}
               <Route path="*" element={<Navigate to="/" replace />} />

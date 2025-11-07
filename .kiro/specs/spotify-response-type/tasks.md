@@ -18,6 +18,9 @@
 
 
 
+
+
+
   - Add Spotify environment variables to .env.example
   - Document required Spotify App setup in README
   - Add environment variable validation on app startup
@@ -30,6 +33,7 @@
 -
 
 - [x] 3. Spotify API Client Library
+
 
 
 
@@ -46,6 +50,7 @@
   - [x] 3.2 Create lib/spotify-auth.ts for OAuth management
 
 
+
     - Implement initiateSpotifyAuth() to start OAuth flow
     - Implement handleSpotifyCallback() to exchange code for tokens
 
@@ -54,6 +59,7 @@
     - Implement getSpotifyTokens() to retrieve tokens from user metadata
     - Implement saveSpotifyTokens() to store tokens in Supabase
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 8.1, 8.2, 8.3, 8.4, 8.5_
+
 
   - [x] 3.3 Create lib/spotify.ts for API calls
 
@@ -66,16 +72,27 @@
     - Add automatic token refresh on 401 errors
     - _Requirements: 2.2, 2.3, 2.4, 4.1, 4.2, 7.3, 7.4_
 
-- [ ] 4. Custom Hooks
-  - [ ] 4.1 Create hooks/useSpotify.ts
+- [x] 4. Custom Hooks
+
+
+
+  - [x] 4.1 Create hooks/useSpotify.ts
+
+
     - Manage Spotify connection state
     - Provide isConnected, connect, disconnect functions
     - Handle token refresh automatically
     - Expose loading and error states
     - _Requirements: 3.1, 3.4, 8.4, 8.5_
 
-- [ ] 5. Spotify Response Components
-  - [ ] 5.1 Create components/SpotifyConnect.tsx
+- [x] 5. Spotify Response Components
+
+
+
+
+  - [x] 5.1 Create components/SpotifyConnect.tsx
+
+
     - Display connection status
     - Show "Connect Spotify" button when disconnected
     - Show Spotify username when connected
@@ -83,7 +100,9 @@
     - Style with retro Monogram aesthetic
     - _Requirements: 3.1, 3.2, 3.5_
 
-  - [ ] 5.2 Create components/SpotifyTrackCard.tsx
+  - [x] 5.2 Create components/SpotifyTrackCard.tsx
+
+
     - Display track in ASCII box frame (╔═╗║╚╝)
     - Show album art (80x80px)
     - Display track name, artist, album
@@ -94,7 +113,9 @@
     - Use amber (#bfa67a) on dark gray (#2a2a2a) palette
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7_
 
-  - [ ] 5.3 Create components/SpotifyResponse.tsx
+  - [x] 5.3 Create components/SpotifyResponse.tsx
+
+
     - Add input field for Spotify URL
     - Add "Now Playing" button
     - Validate Spotify URL format
@@ -104,7 +125,9 @@
     - Provide submit/cancel actions
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 4.1, 4.2, 4.3, 4.4, 10.1, 10.2, 10.3, 10.4_
 
-  - [ ] 5.4 Create components/PlaylistBuilder.tsx
+  - [x] 5.4 Create components/PlaylistBuilder.tsx
+
+
     - Display "Build Playlist" button
     - Show track count and member participation
     - Handle playlist creation
@@ -114,47 +137,73 @@
     - Style with retro terminal aesthetic
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7_
 
-- [ ] 6. Update Prompt Creation UI
-  - [ ] 6.1 Add "Spotify" option to response type selector in SpaceDashboard
+- [x] 6. Update Prompt Creation UI
+
+
+
+
+  - [x] 6.1 Add "Spotify" option to response type selector in SpaceDashboard
+
+
     - Add button with music icon
     - Update promptType state to include "spotify"
     - Update validation to accept SPOTIFY type
     - _Requirements: 1.1, 1.2_
 
-  - [ ] 6.2 Update createPrompt API call to support SPOTIFY type
+  - [x] 6.2 Update createPrompt API call to support SPOTIFY type
+
+
     - Pass responseType: "SPOTIFY" to API
     - _Requirements: 1.2, 1.5_
 
-- [ ] 7. Update Response Submission UI
-  - [ ] 7.1 Update SpaceDashboard to show Spotify input for SPOTIFY prompts
+- [x] 7. Update Response Submission UI
+
+
+
+
+  - [x] 7.1 Update SpaceDashboard to show Spotify input for SPOTIFY prompts
+
+
     - Check if prompt.response_type === 'SPOTIFY'
     - Render SpotifyResponse component
     - Handle Spotify response submission
     - _Requirements: 1.4, 2.1, 4.4_
 
-  - [ ] 7.2 Update handlePublish to save Spotify data
+  - [x] 7.2 Update handlePublish to save Spotify data
+
     - Save track_id, track metadata to responses table
     - Save spotify_url to music_url field
     - Save album_art_url to image_url field
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
 
-  - [ ] 7.3 Display Spotify badge on SPOTIFY type prompts
+  - [x] 7.3 Display Spotify badge on SPOTIFY type prompts
+
     - Show music icon badge
     - _Requirements: 1.3_
 
-- [ ] 8. Update Review & Publish Tab
-  - [ ] 8.1 Add PlaylistBuilder component to Review tab
+- [x] 8. Update Review & Publish Tab
+
+
+  - [x] 8.1 Add PlaylistBuilder component to Review tab
+
+
     - Show only if Spotify responses exist
     - Pass week's Spotify responses
     - Handle playlist creation callback
     - _Requirements: 7.1, 7.5_
 
-  - [ ] 8.2 Update publishWeek to save playlist URL
+  - [x] 8.2 Update publishWeek to save playlist URL
+
     - Save playlist_url to newsletters table
     - _Requirements: 7.5_
 
-- [ ] 9. OAuth Callback Route
-  - [ ] 9.1 Create auth/spotify/callback route
+- [x] 9. OAuth Callback Route
+
+
+  - [x] 9.1 Create auth/spotify/callback route
+
+
+
     - Handle OAuth callback
     - Exchange code for tokens
     - Save tokens to user metadata
@@ -162,13 +211,17 @@
     - Handle errors gracefully
     - _Requirements: 3.3, 3.4, 3.5_
 
-- [ ] 10. Response Display Updates
-  - [ ] 10.1 Update My Responses tab to display Spotify tracks
+- [x] 10. Response Display Updates
+
+  - [x] 10.1 Update My Responses tab to display Spotify tracks
+
     - Render SpotifyTrackCard for Spotify responses
     - Show track metadata
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7_
 
-  - [ ] 10.2 Update Archive tab to display Spotify tracks
+
+  - [x] 10.2 Update Archive tab to display Spotify tracks
+
     - Render SpotifyTrackCard for archived Spotify responses
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7_
 

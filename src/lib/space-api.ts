@@ -254,7 +254,7 @@ export async function createPrompt(data: {
   weekNumber: number;
   question: string;
   order: number;
-  responseType?: 'TEXT' | 'IMAGE';
+  responseType?: 'TEXT' | 'IMAGE' | 'SPOTIFY';
   imageUrl?: string;
   musicUrl?: string;
   isPublished?: boolean;
@@ -560,6 +560,71 @@ export async function getWeekSubmissionStatus(spaceId: string, weekNumber: numbe
   }) || [];
 
   return submissionStatus;
+}
+
+/**
+ * Get Spotify responses for a specific week
+ */
+export async function getWeekSpotifyResponses(spaceId: string, weekNumber: number) {
+  // Get all prompts for the week with SPOTIFY response type
+  const { data: prompts, error: promptsError } = await supabase
+    .from('prompts')
+    .select('id, question')
+    .eq('space_id', spaceId)
+    .eq('week_number', weekNumber)
+    .eq('response_type', 'SPOTIFY')
+    .eq('is_published', true);
+
+  if (promptsError) throw promptsError;
+
+  const promptIds = prompts?.map(p => p.id) || [];
+
+  if (promptIds.length === 0) {
+    return [];
+  }
+
+  // Get all Spotify responses for these prompts
+  const { data: responses, error: responsesError } = await supabase
+    .from('responses')
+    .select(`
+      id,
+      content,
+      music_url,
+      image_url,
+      created_at,
+      user:users!responses_user_id_fkey(id, name),
+      prompt:prompts!responses_prompt_id_fkey(id, question)
+    `)
+    .in('prompt_id', promptIds)
+    .eq('is_draft', false)
+    .not('music_url', 'is', null)
+    .order('created_at', { ascending: false });
+
+  if (responsesError) throw responsesError;
+
+  // Parse track metadata from content field
+  return responses?.map(response => {
+    let trackMetadata: any = {};
+    try {
+      trackMetadata = JSON.parse(response.content || '{}');
+    } catch (e) {
+      console.warn('Failed to parse track metadata:', response.content);
+    }
+
+    // Handle user data (could be object or array from Supabase)
+    const userData = Array.isArray(response.user) ? response.user[0] : response.user;
+    const promptData = Array.isArray(response.prompt) ? response.prompt[0] : response.prompt;
+
+    return {
+      trackId: trackMetadata.trackId || '',
+      trackName: trackMetadata.trackName || 'Unknown Track',
+      artistName: trackMetadata.artistName || 'Unknown Artist',
+      albumName: trackMetadata.albumName || 'Unknown Album',
+      spotifyUrl: response.music_url || '',
+      albumArtUrl: response.image_url || '',
+      duration: trackMetadata.duration || 0,
+    };
+  }) || [];
 }
 
 /**

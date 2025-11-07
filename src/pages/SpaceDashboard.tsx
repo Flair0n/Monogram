@@ -38,12 +38,16 @@ import {
   UserPlus,
   Trash2,
   Image,
-  Plus
+  Plus,
+  Music
 } from "lucide-react";
 import { MainLayout } from "../components/layouts/MainLayout";
 import { useSpace } from "../contexts/SpaceContext";
 import { useAuth } from "../contexts/AuthContext";
 import { ExportWritings } from "../components/ExportWritings";
+import { SpotifyResponse } from "../components/SpotifyResponse";
+import { SpotifyTrackCard } from "../components/SpotifyTrackCard";
+import { PlaylistBuilder } from "../components/PlaylistBuilder";
 import { 
   getSpace,
   getSpaceByName,
@@ -55,11 +59,13 @@ import {
   createPrompt,
   deletePrompt,
   getWeekSubmissionStatus,
+  getWeekSpotifyResponses,
   publishWeek,
   updateResponse,
   type SpaceWithDetails 
 } from "../lib/space-api";
 import { supabase } from "../lib/supabase";
+import type { SpotifyResponseData } from "../lib/spotify-types";
 
 // Mock data - will be replaced with actual data from Supabase
 const mockSpacesData: Record<string, any> = {
@@ -265,6 +271,7 @@ export function SpaceDashboard() {
   const [reflectionContent, setReflectionContent] = useState("");
   const [reflectionImage, setReflectionImage] = useState<File | null>(null);
   const [reflectionImagePreview, setReflectionImagePreview] = useState<string>("");
+  const [reflectionSpotify, setReflectionSpotify] = useState<SpotifyResponseData | null>(null);
   const [isEditingReflection, setIsEditingReflection] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   
@@ -281,7 +288,7 @@ export function SpaceDashboard() {
   const [exportInlineOpen, setExportInlineOpen] = useState(false);
   
   // Curator prompt creation state
-  const [promptType, setPromptType] = useState<"text" | "image">("text");
+  const [promptType, setPromptType] = useState<"text" | "image" | "spotify">("text");
   const [newPromptText, setNewPromptText] = useState("");
   const [newPromptCaption, setNewPromptCaption] = useState("");
   const [newPromptImage, setNewPromptImage] = useState<File | null>(null);
@@ -294,6 +301,7 @@ export function SpaceDashboard() {
   
   // Review & Publish state
   const [submissionStatus, setSubmissionStatus] = useState<any[]>([]);
+  const [spotifyResponses, setSpotifyResponses] = useState<SpotifyResponseData[]>([]);
   const [showPublishWeekDialog, setShowPublishWeekDialog] = useState(false);
   const [isPublishingWeek, setIsPublishingWeek] = useState(false);
 
@@ -351,6 +359,10 @@ export function SpaceDashboard() {
           if (user.id === spaceData.current_curator_id || user.id === spaceData.leader_id) {
             const statusData = await getWeekSubmissionStatus(spaceData.id, spaceData.current_week);
             setSubmissionStatus(statusData);
+            
+            // Load Spotify responses for playlist building
+            const spotifyData = await getWeekSpotifyResponses(spaceData.id, spaceData.current_week);
+            setSpotifyResponses(spotifyData);
           }
 
           // Set current space context
@@ -417,6 +429,8 @@ export function SpaceDashboard() {
     try {
       const prompt = prompts[activePromptIndex];
       let imageUrl: string | undefined = undefined;
+      let musicUrl: string | undefined = undefined;
+      let content = reflectionContent;
       
       // Upload image if this is an image response type
       if (prompt.response_type === 'IMAGE' && reflectionImage && space) {
@@ -443,12 +457,27 @@ export function SpaceDashboard() {
         imageUrl = publicUrl;
       }
       
+      // Handle Spotify response type
+      if (prompt.response_type === 'SPOTIFY' && reflectionSpotify) {
+        musicUrl = reflectionSpotify.spotifyUrl;
+        imageUrl = reflectionSpotify.albumArtUrl;
+        // Store track metadata as JSON in content field
+        content = JSON.stringify({
+          trackId: reflectionSpotify.trackId,
+          trackName: reflectionSpotify.trackName,
+          artistName: reflectionSpotify.artistName,
+          albumName: reflectionSpotify.albumName,
+          duration: reflectionSpotify.duration,
+        });
+      }
+      
       // Submit to database
       await submitResponse({
         promptId: prompt.id,
         userId: user.id,
-        content: reflectionContent,
+        content: content,
         imageUrl: imageUrl,
+        musicUrl: musicUrl,
         isDraft: false,
       });
 
@@ -456,7 +485,7 @@ export function SpaceDashboard() {
       setCurrentWeekReflections(prev => ({
         ...prev,
         [activePromptIndex]: {
-          content: reflectionContent,
+          content: content,
           imageUrl: imageUrl,
           isDraft: false,
           savedAt: new Date().toISOString()
@@ -473,6 +502,7 @@ export function SpaceDashboard() {
       setReflectionContent("");
       setReflectionImage(null);
       setReflectionImagePreview("");
+      setReflectionSpotify(null);
       setIsEditingReflection(false);
 
       // Switch to My Responses tab after a short delay
@@ -600,7 +630,7 @@ export function SpaceDashboard() {
         weekNumber: space.current_week,
         question: newPromptText.trim(),
         order: prompts.length + 1,
-        responseType: promptType === "text" ? "TEXT" : "IMAGE",
+        responseType: promptType === "text" ? "TEXT" : promptType === "image" ? "IMAGE" : "SPOTIFY",
         isPublished: true,
       });
 
@@ -832,29 +862,38 @@ export function SpaceDashboard() {
                               <div className="space-y-2">
                                 <Label className="text-sm font-medium">Response Type</Label>
                                 <p className="text-xs text-muted-foreground mb-2">How should members respond to this prompt?</p>
-                                <div className="flex gap-2">
+                                <div className="grid grid-cols-3 gap-2">
                                   <Button
                                     type="button"
                                     variant={promptType === "text" ? "default" : "outline"}
                                     onClick={() => setPromptType("text")}
-                                    className="flex-1 gap-2"
+                                    className="gap-2"
                                   >
                                     <FileText className="w-4 h-4" />
-                                    Text Response
+                                    Text
                                   </Button>
                                   <Button
                                     type="button"
                                     variant={promptType === "image" ? "default" : "outline"}
                                     onClick={() => setPromptType("image")}
-                                    className="flex-1 gap-2"
+                                    className="gap-2"
                                   >
                                     <Image className="w-4 h-4" />
-                                    Image + Caption
+                                    Image
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant={promptType === "spotify" ? "default" : "outline"}
+                                    onClick={() => setPromptType("spotify")}
+                                    className="gap-2"
+                                  >
+                                    <Music className="w-4 h-4" />
+                                    Spotify
                                   </Button>
                                 </div>
                               </div>
 
-                              {/* Prompt Question (for both types) */}
+                              {/* Prompt Question (for all types) */}
                               <div className="space-y-2">
                                 <Label htmlFor="prompt-question" className="text-sm">
                                   Prompt Question
@@ -864,7 +903,9 @@ export function SpaceDashboard() {
                                   placeholder={
                                     promptType === "text" 
                                       ? "Enter a thought-provoking question..." 
-                                      : "e.g., Share an image that represents your week"
+                                      : promptType === "image"
+                                      ? "e.g., Share an image that represents your week"
+                                      : "e.g., Share a song that captures your mood this week"
                                   }
                                   value={newPromptText}
                                   onChange={(e) => setNewPromptText(e.target.value)}
@@ -874,6 +915,11 @@ export function SpaceDashboard() {
                                 {promptType === "image" && (
                                   <p className="text-xs text-muted-foreground">
                                     Members will upload an image with a one-line caption
+                                  </p>
+                                )}
+                                {promptType === "spotify" && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Members will share a Spotify track (URL or Now Playing)
                                   </p>
                                 )}
                               </div>
@@ -963,6 +1009,12 @@ export function SpaceDashboard() {
                                 <div className="flex-1">
                                   <div className="flex items-start gap-2 mb-3">
                                     <p className="font-serif text-xl flex-1">{prompt.question}</p>
+                                    {prompt.response_type === 'SPOTIFY' && (
+                                      <Badge variant="outline" className="text-xs gap-1 shrink-0">
+                                        <Music className="w-3 h-3" />
+                                        Spotify Response
+                                      </Badge>
+                                    )}
                                     {prompt.response_type === 'IMAGE' && (
                                       <Badge variant="outline" className="text-xs gap-1 shrink-0">
                                         <Image className="w-3 h-3" />
@@ -1022,8 +1074,15 @@ export function SpaceDashboard() {
                             {isEditing ? (
                               // Edit Mode
                               <div className="space-y-6">
-                                {/* Image Response Type */}
-                                {prompt.response_type === 'IMAGE' ? (
+                                {/* Spotify Response Type */}
+                                {prompt.response_type === 'SPOTIFY' ? (
+                                  <SpotifyResponse
+                                    promptId={prompt.id}
+                                    onSubmit={(data) => setReflectionSpotify(data)}
+                                    initialValue={reflectionSpotify || undefined}
+                                  />
+                                ) : prompt.response_type === 'IMAGE' ? (
+                                  /* Image Response Type */
                                   <div className="space-y-4">
                                     {/* Image Upload */}
                                     <div className="space-y-2">
@@ -1129,6 +1188,7 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                                         setReflectionContent("");
                                         setReflectionImage(null);
                                         setReflectionImagePreview("");
+                                        setReflectionSpotify(null);
                                       }}
                                       className="gap-2 border-black/20 hover:bg-black/5"
                                     >
@@ -1139,7 +1199,9 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                                       variant="outline"
                                       onClick={handleSaveDraft}
                                       disabled={
-                                        prompt.response_type === 'IMAGE' 
+                                        prompt.response_type === 'SPOTIFY'
+                                          ? !reflectionSpotify
+                                          : prompt.response_type === 'IMAGE' 
                                           ? (!reflectionImage || !reflectionContent.trim())
                                           : !reflectionContent.trim()
                                       }
@@ -1151,7 +1213,9 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                                     <Button
                                       onClick={handlePublish}
                                       disabled={
-                                        prompt.response_type === 'IMAGE' 
+                                        prompt.response_type === 'SPOTIFY'
+                                          ? !reflectionSpotify
+                                          : prompt.response_type === 'IMAGE' 
                                           ? (!reflectionImage || !reflectionContent.trim())
                                           : !reflectionContent.trim()
                                       }
@@ -1299,14 +1363,60 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                                 <Edit2 className="w-4 h-4" strokeWidth={1.5} />
                               </Button>
                             </div>
-                            <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-                              {response.content}
-                            </p>
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              <span>{new Date(response.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                              <span>•</span>
-                              <span>{response.content.split(/\s+/).filter((w: string) => w.length > 0).length} words</span>
-                            </div>
+                            {/* Check if this is a Spotify response */}
+                            {response.music_url ? (
+                              <div className="mb-3">
+                                {(() => {
+                                  try {
+                                    const trackData = JSON.parse(response.content);
+                                    return (
+                                      <SpotifyTrackCard
+                                        track={{
+                                          id: trackData.trackId || '',
+                                          name: trackData.trackName || 'Unknown Track',
+                                          artist: trackData.artistName || 'Unknown Artist',
+                                          album: trackData.albumName || 'Unknown Album',
+                                          albumArt: response.image_url || '',
+                                          duration: trackData.duration || 0,
+                                          url: response.music_url,
+                                        }}
+                                        showProgress={false}
+                                        animated={false}
+                                      />
+                                    );
+                                  } catch (e) {
+                                    // Fallback for invalid JSON
+                                    return (
+                                      <div className="p-4 border border-border rounded-lg bg-muted/20">
+                                        <p className="text-sm text-muted-foreground mb-2">
+                                          🎵 Spotify track shared
+                                        </p>
+                                        <a 
+                                          href={response.music_url} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="text-sm text-sage hover:underline"
+                                        >
+                                          Open in Spotify
+                                        </a>
+                                      </div>
+                                    );
+                                  }
+                                })()}
+                              </div>
+                            ) : (
+                              /* Regular text response */
+                              <>
+                                <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+                                  {response.content}
+                                </p>
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                  <span>{new Date(response.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                  <span>•</span>
+                                  <span>{response.content.split(/\s+/).filter((w: string) => w.length > 0).length} words</span>
+                                </div>
+                              </>
+                            )}
                           </motion.div>
                         )}
                       </Card>
@@ -1618,8 +1728,24 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                     </div>
                   </Card>
 
+                  {/* Playlist Builder */}
+                  {space && spotifyResponses.length > 0 && (
+                    <div className="mt-8">
+                      <PlaylistBuilder
+                        spaceId={space.id}
+                        spaceName={space.name}
+                        weekNumber={space.current_week}
+                        responses={spotifyResponses}
+                        onPlaylistCreated={(playlistUrl) => {
+                          console.log('Playlist created:', playlistUrl);
+                          // Reload space data to show playlist URL
+                        }}
+                      />
+                    </div>
+                  )}
+
                   {/* Publish Week Button */}
-                  <div className="mt-8">
+                  <div className="mt-6">
                     <Button
                       onClick={() => setShowPublishWeekDialog(true)}
                       disabled={space.is_published}
