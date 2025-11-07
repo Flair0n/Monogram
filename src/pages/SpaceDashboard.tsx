@@ -265,7 +265,7 @@ export function SpaceDashboard() {
   
   // This Week reflection state
   const [currentWeekReflections, setCurrentWeekReflections] = useState<{
-    [promptIndex: number]: { content: string; imageUrl?: string; isDraft: boolean; savedAt?: string }
+    [promptIndex: number]: { content: string; imageUrl?: string; musicUrl?: string; isDraft: boolean; savedAt?: string }
   }>({});
   const [activePromptIndex, setActivePromptIndex] = useState(0);
   const [reflectionContent, setReflectionContent] = useState("");
@@ -390,13 +390,35 @@ export function SpaceDashboard() {
     };
   }, [spaceName, user, setCurrentSpace]);
 
+  // Sync responses from database to currentWeekReflections
+  useEffect(() => {
+    if (responses.length > 0 && prompts.length > 0 && space) {
+      const reflectionsMap: { [promptIndex: number]: { content: string; imageUrl?: string; musicUrl?: string; isDraft: boolean; savedAt?: string } } = {};
+      
+      prompts.forEach((prompt, index) => {
+        const response = responses.find(r => r.prompt_id === prompt.id);
+        if (response) {
+          reflectionsMap[index] = {
+            content: response.content,
+            imageUrl: response.image_url || undefined,
+            musicUrl: response.music_url || undefined,
+            isDraft: response.is_draft,
+            savedAt: response.created_at,
+          };
+        }
+      });
+      
+      setCurrentWeekReflections(reflectionsMap);
+    }
+  }, [responses, prompts, space]);
+
   // Initialize reflection content on mount
   useEffect(() => {
     const saved = currentWeekReflections[activePromptIndex];
     if (saved?.content) {
       setReflectionContent(saved.content);
     }
-  }, []);
+  }, [currentWeekReflections, activePromptIndex]);
 
   // Load saved reflection when switching prompts
   const handlePromptChange = (index: number) => {
@@ -408,10 +430,30 @@ export function SpaceDashboard() {
 
   // Save as draft
   const handleSaveDraft = () => {
+    const prompt = prompts[activePromptIndex];
+    let content = reflectionContent;
+    let imageUrl: string | undefined = reflectionImagePreview || undefined;
+    let musicUrl: string | undefined = undefined;
+    
+    // Handle Spotify response type
+    if (prompt?.response_type === 'SPOTIFY' && reflectionSpotify) {
+      musicUrl = reflectionSpotify.spotifyUrl;
+      imageUrl = reflectionSpotify.albumArtUrl;
+      content = JSON.stringify({
+        trackId: reflectionSpotify.trackId,
+        trackName: reflectionSpotify.trackName,
+        artistName: reflectionSpotify.artistName,
+        albumName: reflectionSpotify.albumName,
+        duration: reflectionSpotify.duration,
+      });
+    }
+    
     setCurrentWeekReflections(prev => ({
       ...prev,
       [activePromptIndex]: {
-        content: reflectionContent,
+        content: content,
+        imageUrl: imageUrl,
+        musicUrl: musicUrl,
         isDraft: true,
         savedAt: new Date().toISOString()
       }
@@ -487,6 +529,7 @@ export function SpaceDashboard() {
         [activePromptIndex]: {
           content: content,
           imageUrl: imageUrl,
+          musicUrl: musicUrl,
           isDraft: false,
           savedAt: new Date().toISOString()
         }
@@ -1230,9 +1273,40 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                             ) : saved ? (
                               // Display Mode with Saved Content
                               <div>
-                                <p className="text-base text-muted-foreground leading-relaxed font-serif whitespace-pre-wrap">
-                                  {saved.content}
-                                </p>
+                                {/* Check if this is a Spotify response */}
+                                {prompt.response_type === 'SPOTIFY' && saved.content ? (
+                                  <div className="overflow-hidden">
+                                    {(() => {
+                                      try {
+                                        const trackData = JSON.parse(saved.content);
+                                        return (
+                                          <SpotifyTrackCard
+                                            track={{
+                                              id: trackData.trackId || '',
+                                              name: trackData.trackName || 'Unknown Track',
+                                              artist: trackData.artistName || 'Unknown Artist',
+                                              album: trackData.albumName || 'Unknown Album',
+                                              albumArt: saved.imageUrl || '',
+                                              duration: trackData.duration || 0,
+                                              url: saved.musicUrl || '',
+                                            }}
+                                            animated={false}
+                                          />
+                                        );
+                                      } catch (e) {
+                                        return (
+                                          <p className="text-sm text-muted-foreground">
+                                            Unable to display track preview
+                                          </p>
+                                        );
+                                      }
+                                    })()}
+                                  </div>
+                                ) : (
+                                  <p className="text-base text-muted-foreground leading-relaxed font-serif whitespace-pre-wrap break-words">
+                                    {saved.content}
+                                  </p>
+                                )}
                               </div>
                             ) : (
                               // Empty State
@@ -1290,7 +1364,7 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                   ) : (
                     <div className="space-y-4">
                       {responses.map((response) => (
-                        <Card key={response.id} className="p-6 paper-texture">
+                        <Card key={response.id} className="p-6 paper-texture overflow-hidden">
                           {editingResponseId === response.id ? (
                           <motion.div
                             initial={{ opacity: 0 }}
@@ -1365,7 +1439,7 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                             </div>
                             {/* Check if this is a Spotify response */}
                             {response.music_url ? (
-                              <div className="mb-3">
+                              <div className="mb-3 overflow-hidden">
                                 {(() => {
                                   try {
                                     const trackData = JSON.parse(response.content);
@@ -1407,7 +1481,7 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                             ) : (
                               /* Regular text response */
                               <>
-                                <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+                                <p className="text-sm text-muted-foreground leading-relaxed mb-3 break-words overflow-wrap-anywhere">
                                   {response.content}
                                 </p>
                                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
