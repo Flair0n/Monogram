@@ -192,6 +192,7 @@ model Newsletter {
   // URLs
   publicUrl       String?  @map("public_url") // Web version
   pdfUrl          String?  @map("pdf_url")    // PDF export
+  playlistUrl     String?  @map("playlist_url") // Spotify playlist
   
   // Publishing
   isPublished     Boolean  @default(false) @map("is_published")
@@ -437,8 +438,9 @@ enum MediaType {
 }
 
 enum ResponseType {
-  TEXT  // Members write text responses
-  IMAGE // Members upload image with caption
+  TEXT    // Members write text responses
+  IMAGE   // Members upload image with caption
+  SPOTIFY // Members share Spotify track
 
   @@map("response_type")
 }
