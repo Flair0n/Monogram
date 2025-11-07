@@ -25,4 +25,4 @@ if (isDevelopment) globalThis.prisma = prisma;
 
 // Export types for convenience (available after running prisma:generate)
 export type { User, Space, Membership, Prompt, Response, Settings } from '@prisma/client';
-export { UserRole, AccessType, MembershipRole, Theme, LandingPage, ProfileVisibility } from '@prisma/client';
+export { UserRole, MembershipRole, Theme, LandingPage, ProfileVisibility } from '@prisma/client';

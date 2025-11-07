@@ -68,7 +68,6 @@ model Space {
   name             String
   description      String?          @db.Text
   leaderId         String           @map("leader_id") @db.Uuid
-  accessType       AccessType       @default(PUBLIC) @map("access_type")
   currentWeek      Int              @default(1) @map("current_week")
   currentCuratorId String?          @map("current_curator_id") @db.Uuid
   
@@ -91,7 +90,6 @@ model Space {
   curatorRotations CuratorRotation[]
 
   @@index([leaderId])
-  @@index([accessType])
   @@index([currentWeek])
   @@map("spaces")
 }
@@ -411,13 +409,6 @@ enum UserRole {
   ADMIN
 
   @@map("user_role")
-}
-
-enum AccessType {
-  PUBLIC  @map("Public")
-  PRIVATE @map("Private")
-
-  @@map("access_type")
 }
 
 enum MembershipRole {

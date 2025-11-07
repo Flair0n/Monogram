@@ -27,7 +27,7 @@ import {
   TooltipTrigger,
 } from "../components/ui/tooltip";
 import { TerminalSelector } from "../components/ui/terminal-selector";
-import { getUserSpaces, createSpace, type SpaceWithDetails, type AccessType } from "../lib/space-api";
+import { getUserSpaces, createSpace, type SpaceWithDetails } from "../lib/space-api";
 import { SpaceCard } from "../components/SpaceCard";
 
 export function Dashboard() {
@@ -39,7 +39,6 @@ export function Dashboard() {
   const [showTerminal, setShowTerminal] = useState(false);
   const [spaceName, setSpaceName] = useState("");
   const [description, setDescription] = useState("");
-  const [accessType, setAccessType] = useState<AccessType>("PUBLIC");
   const [rotationType, setRotationType] = useState<"ROUND_ROBIN" | "RANDOM" | "MANUAL">("ROUND_ROBIN");
   const [publishDay, setPublishDay] = useState<number>(0); // 0 = Sunday
   const [isCreating, setIsCreating] = useState(false);
@@ -113,17 +112,10 @@ export function Dashboard() {
     setShowTerminal(false);
     setSpaceName("");
     setDescription("");
-    setAccessType("PUBLIC");
     setRotationType("ROUND_ROBIN");
     setPublishDay(0);
     setIsCreating(false);
     setShowSuccess(false);
-  };
-
-  const handleAccessTypeChange = (type: string) => {
-    if (!isCreating && !showSuccess) {
-      setAccessType(type as AccessType);
-    }
   };
 
   const handleRotationTypeChange = (type: string) => {
@@ -137,11 +129,6 @@ export function Dashboard() {
       setPublishDay(parseInt(day));
     }
   };
-
-  const accessTypeOptions = [
-    { value: "PUBLIC", label: "Public" },
-    { value: "PRIVATE", label: "Private" },
-  ];
 
   const rotationTypeOptions = [
     { value: "ROUND_ROBIN", label: "Round Robin" },
@@ -173,7 +160,6 @@ export function Dashboard() {
         name: spaceName,
         description: description,
         leaderId: user.id,
-        accessType: accessType,
         rotationType: rotationType,
         publishDay: publishDay,
       });
@@ -225,7 +211,7 @@ export function Dashboard() {
                   key={space.id}
                   space={space}
                   currentUserId={user?.id}
-                  onClick={() => navigate(`/spaces/${space.id}/dashboard`)}
+                  onClick={() => navigate(`/spaces/${encodeURIComponent(space.name)}/dashboard`)}
                 />
               ))
             )}
@@ -373,19 +359,6 @@ export function Dashboard() {
                         rows={3}
                         className="w-full bg-transparent border border-[#2a2a2a]/20 rounded px-2 py-1 text-sm focus:outline-none focus:border-[#bfa67a] transition-colors resize-none disabled:opacity-50"
                         placeholder="What's this space about?"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Access Type Toggle */}
-                  <div className="space-y-1">
-                    <div className="ml-4">
-                      <TerminalSelector
-                        options={accessTypeOptions}
-                        value={accessType}
-                        onChange={handleAccessTypeChange}
-                        label="Access Type"
-                        className="w-full"
                       />
                     </div>
                   </div>

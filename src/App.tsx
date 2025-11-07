@@ -65,7 +65,7 @@ export default function App() {
 
               {/* Space Routes */}
               <Route 
-                path="/spaces/:spaceId" 
+                path="/spaces/:spaceName" 
                 element={
                   <ProtectedRoute>
                     <SpaceOverview />
@@ -73,7 +73,7 @@ export default function App() {
                 } 
               />
               <Route 
-                path="/spaces/:spaceId/dashboard" 
+                path="/spaces/:spaceName/dashboard" 
                 element={
                   <ProtectedRoute>
                     <SpaceDashboard />
@@ -81,7 +81,7 @@ export default function App() {
                 } 
               />
               <Route 
-                path="/spaces/:spaceId/settings" 
+                path="/spaces/:spaceName/settings" 
                 element={
                   <ProtectedRoute>
                     <SpaceSettingsPage />

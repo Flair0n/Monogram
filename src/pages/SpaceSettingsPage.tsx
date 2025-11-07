@@ -10,44 +10,120 @@ import { Separator } from "../components/ui/separator";
 import { ArrowLeft, Users, Download, Trash2, Bell, Mail, UserPlus } from "lucide-react";
 import { MainLayout } from "../components/layouts/MainLayout";
 import { useSpace } from "../contexts/SpaceContext";
+import { useAuth } from "../contexts/AuthContext";
 import { ExportWritings } from "../components/ExportWritings";
+import { getSpace, getSpaceByName, getSpaceMembers, updateSpace, type SpaceWithDetails } from "../lib/space-api";
 
 export function SpaceSettingsPage() {
-  const { spaceId } = useParams<{ spaceId: string }>();
+  const { spaceName } = useParams<{ spaceName: string }>();
   const navigate = useNavigate();
   const { setCurrentSpace } = useSpace();
+  const { user } = useAuth();
+  
+  // Real data state
+  const [space, setSpace] = useState<SpaceWithDetails | null>(null);
+  const [members, setMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Form state
+  const [spaceNameInput, setSpaceNameInput] = useState("");
+  const [description, setDescription] = useState("");
+  const [rotationType, setRotationType] = useState<"ROUND_ROBIN" | "MANUAL" | "RANDOM">("ROUND_ROBIN");
+  
   const [exportInlineOpen, setExportInlineOpen] = useState(false);
   const [inviteInlineOpen, setInviteInlineOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [memberToRemove, setMemberToRemove] = useState<string | null>(null);
   const [removeConfirmText, setRemoveConfirmText] = useState("");
 
-  // Mock space data
-  const mockSpacesData: Record<string, any> = {
-    "1": { name: "Sunday Reflections", description: "Weekly introspective prompts for mindful living" },
-    "2": { name: "Creative Sparks", description: "Fiction prompts and collaborative storytelling" },
-    "3": { name: "Morning Pages", description: "Daily gratitude and goal-setting journaling" }
-  };
-
-  const currentSpace = mockSpacesData[spaceId || "1"] || mockSpacesData["1"];
-
-  // Set current space context
+  // Load space data
   useEffect(() => {
-    if (spaceId) {
-      setCurrentSpace({
-        id: spaceId,
-        name: currentSpace.name,
-        description: currentSpace.description,
-        memberCount: 8,
-        currentWeek: 12,
-        currentCurator: "Emma Chen"
-      });
-    }
+    if (!spaceName || !user) return;
+
+    const loadSpaceData = async () => {
+      try {
+        setLoading(true);
+        
+        // Load space details by name
+        const spaceData = await getSpaceByName(decodeURIComponent(spaceName));
+        
+        if (!spaceData) {
+          console.error('Space not found:', spaceName);
+          navigate('/dashboard');
+          return;
+        }
+        
+        setSpace(spaceData);
+
+        if (spaceData) {
+          setSpaceNameInput(spaceData.name);
+          setDescription(spaceData.description || "");
+          setRotationType(spaceData.rotation_type as any);
+
+          // Load members
+          const membersData = await getSpaceMembers(spaceData.id);
+          setMembers(membersData);
+
+          // Set current space context
+          setCurrentSpace({
+            id: spaceData.id,
+            name: spaceData.name,
+            description: spaceData.description || "",
+            memberCount: spaceData.member_count,
+            currentWeek: spaceData.current_week,
+            currentCurator: spaceData.current_curator?.name || "No curator assigned"
+          });
+        }
+      } catch (error) {
+        console.error('Error loading space data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSpaceData();
 
     return () => {
       setCurrentSpace(null);
     };
-  }, [spaceId, currentSpace.name, currentSpace.description, setCurrentSpace]);
+  }, [spaceName, user, setCurrentSpace]);
+
+  // Show loading state
+  if (loading || !space) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-sage border-r-transparent mb-4"></div>
+            <p className="text-muted-foreground">Loading settings...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  const handleSaveChanges = async () => {
+    if (!space) return;
+
+    try {
+      await updateSpace(space.id, {
+        name: spaceNameInput,
+        description: description,
+        rotation_type: rotationType,
+      });
+
+      // Reload space data to get updated info
+      const spaceData = await getSpaceByName(spaceNameInput);
+      if (spaceData) {
+        setSpace(spaceData);
+      }
+
+      // Navigate back using the new space name
+      navigate(`/spaces/${encodeURIComponent(spaceNameInput)}/dashboard`);
+    } catch (error) {
+      console.error('Error saving changes:', error);
+    }
+  };
 
   return (
     <MainLayout>
@@ -56,14 +132,14 @@ export function SpaceSettingsPage() {
           <Button
             variant="ghost"
             className="mb-8 -ml-4"
-            onClick={() => navigate(`/spaces/${spaceId}/dashboard`)}
+            onClick={() => navigate(`/spaces/${encodeURIComponent(space.name)}/dashboard`)}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Space
           </Button>
 
           <div className="mb-8">
-            <h1 className="mb-2">{currentSpace.name} Settings</h1>
+            <h1 className="mb-2">{space.name} Settings</h1>
             <p className="text-muted-foreground">Manage this space's preferences and members</p>
           </div>
 
@@ -76,7 +152,8 @@ export function SpaceSettingsPage() {
                   <Label htmlFor="space-name">Space Name</Label>
                   <Input
                     id="space-name"
-                    defaultValue={currentSpace.name}
+                    value={spaceNameInput}
+                    onChange={(e) => setSpaceNameInput(e.target.value)}
                     className="mt-2"
                   />
                 </div>
@@ -84,18 +161,91 @@ export function SpaceSettingsPage() {
                   <Label htmlFor="description">Description</Label>
                   <Input
                     id="description"
-                    defaultValue={currentSpace.description}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
                     className="mt-2"
                   />
                 </div>
                 <div>
                   <Label htmlFor="curator-rotation">Curator Rotation</Label>
-                  <Input
+                  <select
                     id="curator-rotation"
-                    defaultValue="Weekly (Sunday)"
-                    className="mt-2"
-                  />
+                    value={rotationType}
+                    onChange={(e) => setRotationType(e.target.value as any)}
+                    className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="ROUND_ROBIN">Automatic Rotation (Each member takes turns)</option>
+                    <option value="MANUAL">Manual Selection (Leader assigns each week)</option>
+                    <option value="RANDOM">Random Pick (System chooses randomly)</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {rotationType === 'ROUND_ROBIN' && 'Members will automatically rotate as curator each week'}
+                    {rotationType === 'MANUAL' && 'You can manually assign a curator each week'}
+                    {rotationType === 'RANDOM' && 'A random member will be selected as curator each week'}
+                  </p>
                 </div>
+              </div>
+            </Card>
+
+            {/* Curator Assignment */}
+            <Card className="p-6 paper-texture">
+              <h3 className="mb-6">Current Curator</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="current-curator">Assign Curator for Week {space.current_week}</Label>
+                  <select
+                    id="current-curator"
+                    value={space.current_curator_id || 'none'}
+                    onChange={async (e) => {
+                      if (!space) return;
+                      try {
+                        const newCuratorId = e.target.value === 'none' ? null : e.target.value;
+                        await updateSpace(space.id, {
+                          current_curator_id: newCuratorId,
+                        });
+                        // Reload space data
+                        const spaceData = await getSpaceByName(decodeURIComponent(spaceName!));
+                        if (spaceData) setSpace(spaceData);
+                      } catch (error) {
+                        console.error('Error updating curator:', error);
+                      }
+                    }}
+                    className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="none">No curator (no prompts this week)</option>
+                    {members.map((member) => (
+                      <option key={member.id} value={member.user.id}>
+                        {member.user.name} {member.user.id === user?.id && '(You)'}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    The curator sets the weekly prompts for all members to respond to
+                  </p>
+                </div>
+                {space.current_curator && (
+                  <div className="p-4 bg-sage/5 border border-sage/20 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-sage/10 flex items-center justify-center">
+                        {space.current_curator.avatar_url ? (
+                          <img 
+                            src={space.current_curator.avatar_url} 
+                            alt={space.current_curator.name} 
+                            className="w-full h-full rounded-full object-cover" 
+                          />
+                        ) : (
+                          <span className="text-sm font-medium text-sage">
+                            {space.current_curator.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{space.current_curator.name}</p>
+                        <p className="text-xs text-muted-foreground">Current curator for Week {space.current_week}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </Card>
 
@@ -103,7 +253,7 @@ export function SpaceSettingsPage() {
             <Card className="p-6 paper-texture">
               <div className="space-y-2">
                 <div className="flex items-center justify-between mb-6">
-                  <h3>Members (8)</h3>
+                  <h3>Members ({members.length})</h3>
                   <Button 
                     size="sm" 
                     className="gap-2"
@@ -175,90 +325,101 @@ export function SpaceSettingsPage() {
                 </AnimatePresence>
 
                 <div className="space-y-3">
-                  {['Emma Chen', 'Marcus Williams', 'Sofia Rodriguez', 'You'].map((member, index) => (
-                    <div key={index}>
-                      <div className="flex items-center justify-between py-2 border-b border-border">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
-                            <span className="text-xs text-accent-foreground">
-                              {member.split(' ').map(n => n[0]).join('')}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="text-sm">{member}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {index === 0 ? 'Current Curator' : 'Member'}
-                            </p>
-                          </div>
-                        </div>
-                        {member !== 'You' && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => {
-                              if (memberToRemove === member) {
-                                setMemberToRemove(null);
-                                setRemoveConfirmText("");
-                              } else {
-                                setMemberToRemove(member);
-                                setRemoveConfirmText("");
-                              }
-                            }}
-                          >
-                            {memberToRemove === member ? 'Cancel' : 'Remove'}
-                          </Button>
-                        )}
-                      </div>
-
-                      {/* Inline Remove Confirmation */}
-                      <AnimatePresence>
-                        {memberToRemove === member && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="py-4 px-4 space-y-3 bg-destructive/5 border-l-2 border-destructive">
-                              <div className="space-y-2">
-                                <p className="text-sm font-medium text-destructive">
-                                  Confirm removal of {member}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  Type <code className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">sudo rm {member}</code> to confirm
-                                </p>
-                              </div>
-                              <div className="flex gap-2">
-                                <Input
-                                  type="text"
-                                  placeholder={`sudo rm ${member}`}
-                                  value={removeConfirmText}
-                                  onChange={(e) => setRemoveConfirmText(e.target.value)}
-                                  className="flex-1 font-mono text-sm"
-                                  autoFocus
-                                />
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => {
-                                    // Handle remove logic here
-                                    console.log("Removing member:", member);
-                                    setMemberToRemove(null);
-                                    setRemoveConfirmText("");
-                                  }}
-                                  disabled={removeConfirmText !== `sudo rm ${member}`}
-                                  className="gap-2"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                  Remove
-                                </Button>
-                              </div>
+                  {members.map((member) => {
+                    const initials = member.user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                    const isCurrentUser = member.user.id === user?.id;
+                    const isLeader = member.user.id === space.leader_id;
+                    
+                    return (
+                      <div key={member.id}>
+                        <div className="flex items-center justify-between py-2 border-b border-border">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
+                              {member.user.avatar_url ? (
+                                <img src={member.user.avatar_url} alt={member.user.name} className="w-full h-full rounded-full object-cover" />
+                              ) : (
+                                <span className="text-xs text-accent-foreground">{initials}</span>
+                              )}
                             </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  ))}
+                            <div>
+                              <p className="text-sm">
+                                {member.user.name}
+                                {isCurrentUser && " (You)"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {isLeader ? 'Leader' : member.role}
+                              </p>
+                            </div>
+                          </div>
+                          {!isCurrentUser && !isLeader && user?.id === space.leader_id && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => {
+                                if (memberToRemove === member.id) {
+                                  setMemberToRemove(null);
+                                  setRemoveConfirmText("");
+                                } else {
+                                  setMemberToRemove(member.id);
+                                  setRemoveConfirmText("");
+                                }
+                              }}
+                            >
+                              {memberToRemove === member.id ? 'Cancel' : 'Remove'}
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Inline Remove Confirmation */}
+                        <AnimatePresence>
+                          {memberToRemove === member.id && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="py-4 px-4 space-y-3 bg-destructive/5 border-l-2 border-destructive">
+                                <div className="space-y-2">
+                                  <p className="text-sm font-medium text-destructive">
+                                    Confirm removal of {member.user.name}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Type <code className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">sudo rm {member.user.name}</code> to confirm
+                                  </p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Input
+                                    type="text"
+                                    placeholder={`sudo rm ${member.user.name}`}
+                                    value={removeConfirmText}
+                                    onChange={(e) => setRemoveConfirmText(e.target.value)}
+                                    className="flex-1 font-mono text-sm"
+                                    autoFocus
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => {
+                                      // Handle remove logic here
+                                      console.log("Removing member:", member.user.name);
+                                      setMemberToRemove(null);
+                                      setRemoveConfirmText("");
+                                    }}
+                                    disabled={removeConfirmText !== `sudo rm ${member.user.name}`}
+                                    className="gap-2"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    Remove
+                                  </Button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </Card>
@@ -326,7 +487,7 @@ export function SpaceSettingsPage() {
                     >
                       <div className="pt-6 mt-4 border-t border-border/50">
                         <ExportWritings 
-                          spaceName={currentSpace.name} 
+                          spaceName={space.name} 
                           inline={true}
                           onClose={() => setExportInlineOpen(false)}
                         />
@@ -359,8 +520,8 @@ export function SpaceSettingsPage() {
 
             {/* Save Button */}
             <div className="flex gap-3">
-              <Button className="flex-1">Save Changes</Button>
-              <Button variant="outline" onClick={() => navigate(`/spaces/${spaceId}/dashboard`)}>
+              <Button className="flex-1" onClick={handleSaveChanges}>Save Changes</Button>
+              <Button variant="outline" onClick={() => navigate(`/spaces/${encodeURIComponent(space.name)}/dashboard`)}>
                 Cancel
               </Button>
             </div>

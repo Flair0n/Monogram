@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
       );
       
       const fetchPromise = supabase
@@ -74,7 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        throw error;
+      }
       
       if (data) {
         setUser({
@@ -87,10 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           currentStreak: data.current_streak,
         });
       } else {
+        console.error('No user profile found for userId:', userId);
         throw new Error('No user profile found');
       }
     } catch (error) {
-      throw error;
+      console.error('Failed to fetch user profile:', error);
+      // Don't throw - just set loading to false and let the app continue
+      setUser(null);
     } finally {
       setLoading(false);
     }

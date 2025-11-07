@@ -8,7 +8,15 @@ import { Separator } from "../components/ui/separator";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger,
+  DialogFooter 
+} from "../components/ui/dialog";
 import { Label } from "../components/ui/label";
 import { 
   Home, 
@@ -27,11 +35,25 @@ import {
   X,
   Copy,
   Send,
-  UserPlus
+  UserPlus,
+  Trash2
 } from "lucide-react";
 import { MainLayout } from "../components/layouts/MainLayout";
 import { useSpace } from "../contexts/SpaceContext";
+import { useAuth } from "../contexts/AuthContext";
 import { ExportWritings } from "../components/ExportWritings";
+import { 
+  getSpace,
+  getSpaceByName,
+  getSpaceMembers, 
+  getCurrentWeekPrompts, 
+  getUserResponses,
+  submitResponse,
+  getArchivedWeeks,
+  createPrompt,
+  deletePrompt,
+  type SpaceWithDetails 
+} from "../lib/space-api";
 
 // Mock data - will be replaced with actual data from Supabase
 const mockSpacesData: Record<string, any> = {
@@ -147,7 +169,22 @@ const currentWeekPrompts = [
 
 // Mock archived weeks data
 const generateArchivedWeeks = (currentWeekNumber: number) => {
-  const archivedWeeks = [];
+  const archivedWeeks: Array<{
+    weekNumber: number;
+    dateRange: string;
+    curator: string;
+    prompts: Array<{
+      id: string;
+      text: string;
+      userResponse: {
+        content: string;
+        wordCount: number;
+        publishedAt: string;
+      } | null;
+    }>;
+    totalResponses: number;
+    participation: string;
+  }> = [];
   const curators = ["Emma Chen", "Marcus Williams", "Sofia Rodriguez", "You"];
   
   for (let i = 1; i <= 8; i++) {
@@ -196,12 +233,21 @@ const generateArchivedWeeks = (currentWeekNumber: number) => {
 };
 
 export function SpaceDashboard() {
-  const { spaceId } = useParams<{ spaceId: string }>();
+  const { spaceName } = useParams<{ spaceName: string }>();
   const navigate = useNavigate();
   const { setCurrentSpace } = useSpace();
+  const { user } = useAuth();
   const [activeNav, setActiveNav] = useState<"thisweek" | "responses" | "members" | "archive">("thisweek");
+  
+  // Real data state
+  const [space, setSpace] = useState<SpaceWithDetails | null>(null);
+  const [prompts, setPrompts] = useState<any[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
+  const [responses, setResponses] = useState<any[]>([]);
+  const [archivedWeeks, setArchivedWeeks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
   const [editingResponseId, setEditingResponseId] = useState<string | null>(null);
-  const [responses, setResponses] = useState(mockResponsesData);
   const [editedTitle, setEditedTitle] = useState("");
   const [editedContent, setEditedContent] = useState("");
   
@@ -226,10 +272,86 @@ export function SpaceDashboard() {
   // Export writings state
   const [exportInlineOpen, setExportInlineOpen] = useState(false);
   
-  // Members state
-  const [members, setMembers] = useState(initialMembersData);
+  // Curator prompt creation state
+  const [newPromptText, setNewPromptText] = useState("");
+  const [isAddingPrompt, setIsAddingPrompt] = useState(false);
+  const [promptToDelete, setPromptToDelete] = useState<{ id: string; question: string } | null>(null);
+  const [showPublishDialog, setShowPublishDialog] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
-  const currentSpace = mockSpacesData[spaceId || "1"] || mockSpacesData["1"];
+  // Handle escape key for dialogs
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (promptToDelete) setPromptToDelete(null);
+        if (showPublishDialog && !isPublishing) setShowPublishDialog(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [promptToDelete, showPublishDialog, isPublishing]);
+
+  // Load space data
+  useEffect(() => {
+    if (!spaceName || !user) return;
+
+    const loadSpaceData = async () => {
+      try {
+        setLoading(true);
+        
+        // Load space details by name
+        const spaceData = await getSpaceByName(decodeURIComponent(spaceName));
+        
+        if (!spaceData) {
+          console.error('Space not found:', spaceName);
+          navigate('/dashboard');
+          return;
+        }
+        
+        setSpace(spaceData);
+
+        if (spaceData) {
+          // Load current week prompts
+          const promptsData = await getCurrentWeekPrompts(spaceData.id, spaceData.current_week);
+          setPrompts(promptsData);
+
+          // Load members
+          const membersData = await getSpaceMembers(spaceData.id);
+          setMembers(membersData);
+
+          // Load user responses
+          const responsesData = await getUserResponses(user.id, spaceData.id);
+          setResponses(responsesData);
+
+          // Load archived weeks
+          const archivedData = await getArchivedWeeks(spaceData.id, spaceData.current_week, user.id);
+          setArchivedWeeks(archivedData);
+
+          // Set current space context
+          setCurrentSpace({
+            id: spaceData.id,
+            name: spaceData.name,
+            description: spaceData.description || "",
+            memberCount: spaceData.member_count,
+            currentWeek: spaceData.current_week,
+            currentCurator: spaceData.current_curator?.name || "No curator assigned"
+          });
+        }
+      } catch (error) {
+        console.error('Error loading space data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSpaceData();
+
+    // Clear space context when component unmounts
+    return () => {
+      setCurrentSpace(null);
+    };
+  }, [spaceName, user, setCurrentSpace]);
 
   // Initialize reflection content on mount
   useEffect(() => {
@@ -264,36 +386,47 @@ export function SpaceDashboard() {
   };
 
   // Publish reflection
-  const handlePublish = () => {
-    const newResponse = {
-      id: `new-${Date.now()}`,
-      weekNumber: currentSpace.weekNumber,
-      title: currentWeekPrompts[activePromptIndex],
-      content: reflectionContent,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      wordCount: reflectionContent.split(/\s+/).filter(w => w.length > 0).length
-    };
-    
-    setResponses(prev => [newResponse, ...prev]);
-    
-    // Mark as published
-    setCurrentWeekReflections(prev => ({
-      ...prev,
-      [activePromptIndex]: {
+  const handlePublish = async () => {
+    if (!user || !prompts[activePromptIndex]) return;
+
+    try {
+      const prompt = prompts[activePromptIndex];
+      
+      // Submit to database
+      await submitResponse({
+        promptId: prompt.id,
+        userId: user.id,
         content: reflectionContent,
         isDraft: false,
-        savedAt: new Date().toISOString()
+      });
+
+      // Mark as published locally
+      setCurrentWeekReflections(prev => ({
+        ...prev,
+        [activePromptIndex]: {
+          content: reflectionContent,
+          isDraft: false,
+          savedAt: new Date().toISOString()
+        }
+      }));
+
+      // Reload responses
+      if (space) {
+        const responsesData = await getUserResponses(user.id, space.id);
+        setResponses(responsesData);
       }
-    }));
-    
-    // Clear current reflection and show success
-    setReflectionContent("");
-    setIsEditingReflection(false);
-    
-    // Optional: Switch to My Responses tab after a short delay
-    setTimeout(() => {
-      setActiveNav("responses");
-    }, 1000);
+
+      // Clear current reflection and show success
+      setReflectionContent("");
+      setIsEditingReflection(false);
+
+      // Switch to My Responses tab after a short delay
+      setTimeout(() => {
+        setActiveNav("responses");
+      }, 1000);
+    } catch (error) {
+      console.error('Error publishing response:', error);
+    }
   };
 
   const handleEditResponse = (id: string, title: string, content: string) => {
@@ -359,24 +492,88 @@ export function SpaceDashboard() {
     }, 1500);
   };
 
-  // Set current space context when component mounts
-  useEffect(() => {
-    if (spaceId) {
-      setCurrentSpace({
-        id: spaceId,
-        name: currentSpace.name,
-        description: "",
-        memberCount: 8,
-        currentWeek: currentSpace.weekNumber,
-        currentCurator: currentSpace.currentCurator
-      });
-    }
+  const handleAddPrompt = async () => {
+    if (!user || !space || !newPromptText.trim()) return;
 
-    // Clear space context when component unmounts
-    return () => {
-      setCurrentSpace(null);
-    };
-  }, [spaceId, currentSpace.name, currentSpace.weekNumber, currentSpace.currentCurator, setCurrentSpace]);
+    try {
+      setIsAddingPrompt(true);
+      
+      await createPrompt({
+        spaceId: space.id,
+        curatorId: user.id,
+        weekNumber: space.current_week,
+        question: newPromptText.trim(),
+        order: prompts.length + 1,
+        isPublished: true,
+      });
+
+      // Reload prompts
+      const promptsData = await getCurrentWeekPrompts(space.id, space.current_week);
+      setPrompts(promptsData);
+      
+      setNewPromptText("");
+    } catch (error) {
+      console.error('Error adding prompt:', error);
+    } finally {
+      setIsAddingPrompt(false);
+    }
+  };
+
+  const handleDeletePrompt = async (promptId: string) => {
+    if (!space) return;
+
+    try {
+      await deletePrompt(promptId);
+
+      // Reload prompts
+      const promptsData = await getCurrentWeekPrompts(space.id, space.current_week);
+      setPrompts(promptsData);
+    } catch (error) {
+      console.error('Error deleting prompt:', error);
+    }
+  };
+
+  const handlePublishPrompts = async () => {
+    if (!space) return;
+
+    try {
+      setIsPublishing(true);
+      
+      // TODO: Implement email notification logic
+      // This will send emails to all space members with the week's prompts
+      console.log('Publishing prompts to members:', {
+        spaceId: space.id,
+        spaceName: space.name,
+        weekNumber: space.current_week,
+        promptCount: prompts.length,
+        memberCount: space.member_count
+      });
+
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      setShowPublishDialog(false);
+      // Could show a success toast here
+    } catch (error) {
+      console.error('Error publishing prompts:', error);
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  // Show loading state
+  if (loading || !space) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-sage border-r-transparent mb-4"></div>
+            <p className="text-muted-foreground">Loading space...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -415,15 +612,15 @@ export function SpaceDashboard() {
               icon="[*]"
               label="Space Settings"
               active={false}
-              onClick={() => navigate(`/spaces/${spaceId}/settings`)}
+              onClick={() => navigate(`/spaces/${encodeURIComponent(space.name)}/settings`)}
             />
           </nav>
 
           {/* Bottom Info */}
           <div className="mt-8 pt-6 border-t border-border">
             <div className="text-xs text-muted-foreground space-y-1">
-              <p>Week {currentSpace.weekNumber}</p>
-              <p>8 members active</p>
+              <p>Week {space.current_week}</p>
+              <p>{space.member_count} members active</p>
               <p className="flex items-center gap-1">
                 Online<span className="cursor-blink">|</span>
               </p>
@@ -448,21 +645,91 @@ export function SpaceDashboard() {
                     <div className="flex items-center gap-2 mb-2">
                       <Calendar className="w-5 h-5 text-muted-foreground" />
                       <span className="text-sm text-muted-foreground">
-                        Week {currentSpace.weekNumber} · Nov 3–9, 2025
+                        Week {space.current_week}
                       </span>
                     </div>
                     <h1 className="text-4xl font-serif mb-2">This Week's Prompts</h1>
                     <p className="text-muted-foreground">
-                      Curated by {currentSpace.currentCurator}
+                      Curated by {space.current_curator?.name || "No curator assigned"}
                       <span className="cursor-blink inline-block ml-1">|</span>
                     </p>
                   </div>
 
+                  {/* Curator Panel - Show ONLY if user is current curator */}
+                  {space.current_curator_id && user?.id === space.current_curator_id && (
+                    <Card className="p-6 mb-8 paper-texture bg-sage/5 border-sage/20">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 className="text-lg font-medium mb-1">You're the Curator this week!</h3>
+                          <p className="text-sm text-muted-foreground">Set prompts for your space members to respond to</p>
+                        </div>
+                      </div>
+                      
+                      {prompts.length < 10 && (
+                        <div className="space-y-3">
+                          <Input
+                            placeholder="Enter a prompt question..."
+                            value={newPromptText}
+                            onChange={(e) => setNewPromptText(e.target.value)}
+                            onKeyDown={async (e) => {
+                              if (e.key === 'Enter' && newPromptText.trim()) {
+                                await handleAddPrompt();
+                              }
+                            }}
+                            className="bg-background"
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={handleAddPrompt}
+                              disabled={!newPromptText.trim() || isAddingPrompt}
+                              className="gap-2"
+                            >
+                              <PenLine className="w-4 h-4" />
+                              {isAddingPrompt ? 'Adding...' : 'Add Prompt'}
+                            </Button>
+                            <span className="text-xs text-muted-foreground self-center">
+                              {prompts.length}/10 prompts
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {prompts.length >= 10 && (
+                        <p className="text-sm text-muted-foreground">
+                          Maximum of 10 prompts reached for this week
+                        </p>
+                      )}
+                      
+                      {prompts.length > 0 && (
+                        <div className="mt-6 pt-6 border-t border-sage/20">
+                          <Button
+                            onClick={() => setShowPublishDialog(true)}
+                            className="w-full gap-2 bg-sage hover:bg-sage/90 text-cream"
+                          >
+                            <Send className="w-4 h-4" />
+                            Publish & Notify Members ({space.member_count} members)
+                          </Button>
+                          <p className="text-xs text-muted-foreground mt-2 text-center">
+                            Send email notification to all members with this week's prompts
+                          </p>
+                        </div>
+                      )}
+                    </Card>
+                  )}
+
                   {/* All Prompts with Inline Responses */}
-                  <div className="space-y-8">
-                    {currentWeekPrompts.map((prompt, index) => {
+                  {prompts.length === 0 ? (
+                    <Card className="p-12 text-center paper-texture">
+                      <p className="text-muted-foreground mb-4">No prompts for this week yet.</p>
+                      <p className="text-sm text-muted-foreground">The curator will set prompts soon.</p>
+                    </Card>
+                  ) : (
+                    <div className="space-y-8">
+                      {prompts.map((prompt, index) => {
                       const saved = currentWeekReflections[index];
                       const isEditing = activePromptIndex === index && isEditingReflection;
+                      const isCurator = space.current_curator_id && user?.id === space.current_curator_id;
                       
                       return (
                         <Card key={index} className="p-8 paper-texture border-black/20 shadow-sm">
@@ -478,7 +745,7 @@ export function SpaceDashboard() {
                                   <span className="text-sm font-mono">{index + 1}</span>
                                 </div>
                                 <div className="flex-1">
-                                  <p className="font-serif text-xl mb-2">{prompt}</p>
+                                  <p className="font-serif text-xl mb-2">{prompt.question}</p>
                                   {saved && !isEditing && (
                                     <div className="flex items-center gap-2 mt-2">
                                       <Badge 
@@ -496,18 +763,32 @@ export function SpaceDashboard() {
                                 </div>
                               </div>
                               
-                              {/* Edit Button */}
-                              {saved && !isEditing && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handlePromptChange(index)}
-                                  className="gap-2"
-                                >
-                                  <Edit2 className="w-4 h-4" strokeWidth={1.5} />
-                                  Edit
-                                </Button>
-                              )}
+                              <div className="flex items-center gap-2">
+                                {/* Edit Button for responses */}
+                                {saved && !isEditing && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handlePromptChange(index)}
+                                    className="gap-2"
+                                  >
+                                    <Edit2 className="w-4 h-4" strokeWidth={1.5} />
+                                    Edit
+                                  </Button>
+                                )}
+                                
+                                {/* Delete Button for curator */}
+                                {isCurator && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setPromptToDelete({ id: prompt.id, question: prompt.question })}
+                                    className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  >
+                                    <Trash2 className="w-4 h-4" strokeWidth={1.5} />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
 
                             <Separator className="mb-6" />
@@ -607,16 +888,15 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                         </Card>
                       );
                     })}
-                  </div>
+                    </div>
+                  )}
 
                   {/* Curator Note */}
-                  {currentSpace.currentCurator === "Emma Chen" && (
+                  {space.current_curator && (
                     <Card className="mt-8 p-6 bg-sage/5 border-sage/20">
                       <p className="text-sm italic text-muted-foreground leading-relaxed">
-                        💭 "I've been thinking a lot about gratitude this week. These prompts 
-                        are an invitation to notice the small things that hold us together."
+                        💭 This week's prompts curated by {space.current_curator.name}
                       </p>
-                      <p className="text-sm mt-2 font-serif">— Emma</p>
                     </Card>
                   )}
                 </motion.div>
@@ -638,10 +918,16 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                     </p>
                   </div>
 
-                  <div className="space-y-4">
-                    {responses.map((response) => (
-                      <Card key={response.id} className="p-6 paper-texture">
-                        {editingResponseId === response.id ? (
+                  {responses.length === 0 ? (
+                    <Card className="p-12 text-center paper-texture">
+                      <p className="text-muted-foreground mb-4">No responses yet.</p>
+                      <p className="text-sm text-muted-foreground">Start writing to see your responses here.</p>
+                    </Card>
+                  ) : (
+                    <div className="space-y-4">
+                      {responses.map((response) => (
+                        <Card key={response.id} className="p-6 paper-texture">
+                          {editingResponseId === response.id ? (
                           <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -701,13 +987,13 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                             {/* Display Mode */}
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex-1">
-                                <Badge variant="secondary" className="mb-2">Week {response.weekNumber}</Badge>
-                                <p className="font-medium">{response.title}</p>
+                                <Badge variant="secondary" className="mb-2">Week {response.prompt?.week_number}</Badge>
+                                <p className="font-medium">{response.prompt?.question}</p>
                               </div>
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                onClick={() => handleEditResponse(response.id, response.title, response.content)}
+                                onClick={() => handleEditResponse(response.id, response.prompt?.question || "", response.content)}
                                 className="hover:bg-black/5"
                               >
                                 <Edit2 className="w-4 h-4" strokeWidth={1.5} />
@@ -717,15 +1003,16 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                               {response.content}
                             </p>
                             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              <span>{response.date}</span>
+                              <span>{new Date(response.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                               <span>•</span>
-                              <span>{response.wordCount} words</span>
+                              <span>{response.content.split(/\s+/).filter((w: string) => w.length > 0).length} words</span>
                             </div>
                           </motion.div>
                         )}
                       </Card>
                     ))}
                   </div>
+                  )}
                 </motion.div>
               )}
 
@@ -745,39 +1032,48 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                     </p>
                   </div>
 
-                  <div className="space-y-4">
-                    {members.map((member) => (
-                      <Card key={member.id} className="p-6 paper-texture">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-6">
-                            <div className="w-14 h-14 rounded-full bg-sage/10 flex items-center justify-center">
-                              <span className="text-xl font-medium text-sage">
-                                {member.avatar}
-                              </span>
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2 mb-1">
-                                <p className="font-medium text-base">{member.name}</p>
-                                {member.joinedDate === "Just now" && (
-                                  <Badge variant="default" className="text-xs bg-sage text-cream">
-                                    New
-                                  </Badge>
-                                )}
+                  {members.length === 0 ? (
+                    <Card className="p-12 text-center paper-texture">
+                      <p className="text-muted-foreground">No members yet.</p>
+                    </Card>
+                  ) : (
+                    <div className="space-y-4">
+                      {members.map((member) => {
+                        const initials = member.user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                        return (
+                          <Card key={member.id} className="p-6 paper-texture">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-6">
+                                <div className="w-14 h-14 rounded-full bg-sage/10 flex items-center justify-center">
+                                  {member.user.avatar_url ? (
+                                    <img src={member.user.avatar_url} alt={member.user.name} className="w-full h-full rounded-full object-cover" />
+                                  ) : (
+                                    <span className="text-xl font-medium text-sage">{initials}</span>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="font-medium text-base">{member.user.name}</p>
+                                    {member.user.id === user?.id && (
+                                      <Badge variant="outline" className="text-xs">You</Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-muted-foreground">
+                                    {member.role} · Joined {new Date(member.joined_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                                  </p>
+                                </div>
                               </div>
-                              <p className="text-sm text-muted-foreground">
-                                {member.role} · Joined {member.joinedDate}
-                              </p>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="text-sm px-4 py-2">
+                                  {member.total_submissions} response{member.total_submissions !== 1 ? 's' : ''}
+                                </Badge>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="text-sm px-4 py-2">
-                              {member.responsesCount} response{member.responsesCount !== 1 ? 's' : ''}
-                            </Badge>
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
                 </motion.div>
               )}
 
@@ -797,9 +1093,15 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                     </p>
                   </div>
 
-                  <div className="space-y-4">
-                    {generateArchivedWeeks(currentSpace.weekNumber).map((week) => {
-                      const isExpanded = expandedWeek === week.weekNumber;
+                  {archivedWeeks.length === 0 ? (
+                    <Card className="p-12 text-center paper-texture">
+                      <p className="text-muted-foreground mb-4">No archived weeks yet.</p>
+                      <p className="text-sm text-muted-foreground">Past weeks will appear here once you complete them.</p>
+                    </Card>
+                  ) : (
+                    <div className="space-y-4">
+                      {archivedWeeks.map((week) => {
+                        const isExpanded = expandedWeek === week.weekNumber;
                       
                       return (
                         <Card key={week.weekNumber} className="paper-texture overflow-hidden">
@@ -820,11 +1122,7 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                                   <div className="flex items-center gap-1">
                                     <FileText className="w-4 h-4" />
-                                    <span>{week.totalResponses} of 3 prompts answered</span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <Users className="w-4 h-4" />
-                                    <span>{week.participation} members</span>
+                                    <span>{week.totalResponses} of {week.prompts.length} prompts answered</span>
                                   </div>
                                 </div>
                               </div>
@@ -890,8 +1188,9 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                       );
                     })}
                   </div>
+                  )}
 
-                  <ExportWritings spaceName={currentSpace.name} className="w-full mt-6" />
+                  <ExportWritings spaceName={space.name} className="w-full mt-6" />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -901,61 +1200,69 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
         {/* Right Sidebar */}
         <aside className="w-80 border-l border-border bg-card/30 p-6 overflow-auto">
           {/* Stats Card */}
-          <Card className="p-6 mb-6 paper-texture">
-            <h3 className="mb-4">Your Progress</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Flame className="w-5 h-5 text-accent" />
-                  <span className="text-sm">Writing Streak</span>
+          {user && (
+            <Card className="p-6 mb-6 paper-texture">
+              <h3 className="mb-4">Your Progress</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Flame className="w-5 h-5 text-accent" />
+                    <span className="text-sm">Writing Streak</span>
+                  </div>
+                  <span className="text-xl">{user.currentStreak}</span>
                 </div>
-                <span className="text-xl">{mockStats.streak}</span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-secondary" />
-                  <span className="text-sm">Total Responses</span>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-secondary" />
+                    <span className="text-sm">Total Responses</span>
+                  </div>
+                  <span className="text-xl">{responses.length}</span>
                 </div>
-                <span className="text-xl">{mockStats.totalResponses}</span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Award className="w-5 h-5 text-primary" />
-                  <span className="text-sm">Badges Earned</span>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Award className="w-5 h-5 text-primary" />
+                    <span className="text-sm">Tokens</span>
+                  </div>
+                  <span className="text-xl">{user.tokenBalance}</span>
                 </div>
-                <span className="text-xl">{mockStats.badges}</span>
               </div>
-            </div>
-          </Card>
+            </Card>
+          )}
 
           {/* Upcoming Curators */}
           <Card className="p-6 paper-texture">
             <h3 className="mb-4">Curator Schedule</h3>
-            <div className="space-y-3">
-              {mockUpcomingCurators.map((curator, index) => (
-                <div 
-                  key={index}
-                  className={`flex items-center justify-between py-2 ${
-                    index < mockUpcomingCurators.length - 1 ? 'border-b border-border' : ''
-                  }`}
-                >
+            {space.current_curator ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between py-2 border-b border-border">
                   <div>
-                    <p className="text-sm">{curator.name}</p>
-                    <p className="text-xs text-muted-foreground">Week {curator.week}</p>
+                    <p className="text-sm">{space.current_curator.name}</p>
+                    <p className="text-xs text-muted-foreground">Week {space.current_week} (Current)</p>
                   </div>
-                  <span className="text-xs text-muted-foreground">{curator.date}</span>
+                  <span className="text-xs text-sage font-medium">Active</span>
                 </div>
-              ))}
-            </div>
+                <div className="text-center py-4">
+                  <p className="text-xs text-muted-foreground">
+                    {space.rotation_type === 'ROUND_ROBIN' && 'Rotation: Automatic (takes turns)'}
+                    {space.rotation_type === 'MANUAL' && 'Rotation: Manual (leader assigns)'}
+                    {space.rotation_type === 'RANDOM' && 'Rotation: Random selection'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-sm text-muted-foreground">No curator assigned yet</p>
+              </div>
+            )}
             <Button 
               variant="ghost" 
               size="sm" 
               className="w-full mt-4"
-              onClick={() => navigate(`/spaces/${spaceId}/settings`)}
+              onClick={() => navigate(`/spaces/${space.name}/settings`)}
             >
-              View Full Schedule
+              Manage Rotation
             </Button>
           </Card>
 
@@ -1004,14 +1311,14 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                         <div className="flex gap-2">
                           <Input
                             readOnly
-                            value={`monogram.app/join/${currentSpace.id}`}
+                            value={`monogram.app/join/${encodeURIComponent(space.name)}`}
                             className="text-xs"
                           />
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => {
-                              navigator.clipboard.writeText(`monogram.app/join/${currentSpace.id}`);
+                              navigator.clipboard.writeText(`monogram.app/join/${encodeURIComponent(space.name)}`);
                             }}
                           >
                             <Copy className="w-3 h-3" />
@@ -1098,7 +1405,7 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
                   >
                     <div className="pt-6 mt-4 border-t border-border/50">
                       <ExportWritings 
-                        spaceName={currentSpace.name} 
+                        spaceName={space.name} 
                         inline={true}
                         onClose={() => setExportInlineOpen(false)}
                       />
@@ -1110,6 +1417,232 @@ Press enter to begin a new paragraph. Write freely—this is your space to think
           </Card>
         </aside>
       </div>
+
+      {/* Delete Prompt Confirmation Dialog - Terminal Style */}
+      {promptToDelete && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center p-4" 
+          style={{ 
+            zIndex: 999999,
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            animation: 'fadeIn 0.3s ease-out forwards'
+          }}
+        >
+          {/* Click handler overlay */}
+          <div
+            className="absolute inset-0"
+            onClick={() => setPromptToDelete(null)}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+          />
+
+          {/* Terminal Window */}
+          <div
+            className="relative border-2 rounded-lg shadow-2xl w-full max-w-2xl font-mono"
+            style={{ 
+              fontFamily: "'IBM Plex Mono', monospace", 
+              zIndex: 1000000,
+              animation: 'fadeInScale 0.3s ease-out forwards',
+              backgroundColor: '#fdfaf5',
+              borderColor: 'rgba(42, 42, 42, 0.2)',
+              opacity: 1
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Terminal Header */}
+            <div 
+              className="px-4 py-3 rounded-t-lg flex items-center justify-between"
+              style={{ backgroundColor: '#2a2a2a', color: '#fdfaf5' }}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#ff5f56]"></div>
+                <div className="w-3 h-3 rounded-full bg-[#ffbd2e]"></div>
+                <div className="w-3 h-3 rounded-full bg-[#27c93f]"></div>
+                <span className="ml-3 text-sm opacity-70">delete_prompt.sh</span>
+              </div>
+              <button
+                onClick={() => setPromptToDelete(null)}
+                className="text-[#fdfaf5]/50 hover:text-[#fdfaf5] transition-colors text-sm"
+              >
+                [ESC]
+              </button>
+            </div>
+
+            {/* Terminal Body */}
+            <div className="p-6 space-y-4" style={{ color: '#2a2a2a', backgroundColor: '#fdfaf5' }}>
+              {/* Warning Line */}
+              <div className="text-sm opacity-60 mb-4">
+                <span className="text-[#ff5f56]">⚠</span> Destructive action detected
+              </div>
+
+              {/* Prompt to Delete */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-[#ff5f56]">&gt;</span>
+                  <span className="opacity-70">Prompt to delete:</span>
+                </div>
+                <div className="ml-4 p-3 bg-[#2a2a2a]/5 border border-[#2a2a2a]/10 rounded">
+                  <p className="text-sm italic">"{promptToDelete.question}"</p>
+                </div>
+              </div>
+
+              {/* Warning Message */}
+              <div className="ml-4 p-3 bg-[#ff5f56]/10 border border-[#ff5f56]/20 rounded">
+                <p className="text-xs text-[#ff5f56]/80">
+                  This will permanently delete this prompt and all member responses. This action cannot be undone.
+                </p>
+              </div>
+
+              {/* Command Buttons */}
+              <div className="pt-4 flex gap-3">
+                <button
+                  onClick={() => setPromptToDelete(null)}
+                  className="flex-1 px-4 py-2 text-sm border border-[#2a2a2a]/30 rounded hover:border-[#2a2a2a] transition-colors"
+                >
+                  [ESC] Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    await handleDeletePrompt(promptToDelete.id);
+                    setPromptToDelete(null);
+                  }}
+                  className="flex-1 px-4 py-2 text-sm bg-[#ff5f56] text-[#fdfaf5] rounded hover:bg-[#ff5f56]/90 transition-colors"
+                >
+                  <span className="text-[#fdfaf5]">&gt;</span> run delete_prompt
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Publish Prompts Confirmation Dialog - Terminal Style */}
+      {showPublishDialog && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center p-4" 
+          style={{ 
+            zIndex: 999999,
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            animation: 'fadeIn 0.3s ease-out forwards'
+          }}
+        >
+          {/* Click handler overlay */}
+          <div
+            className="absolute inset-0"
+            onClick={() => !isPublishing && setShowPublishDialog(false)}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+          />
+
+          {/* Terminal Window */}
+          <div
+            className="relative border-2 rounded-lg shadow-2xl w-full max-w-2xl font-mono"
+            style={{ 
+              fontFamily: "'IBM Plex Mono', monospace", 
+              zIndex: 1000000,
+              animation: 'fadeInScale 0.3s ease-out forwards',
+              backgroundColor: '#fdfaf5',
+              borderColor: 'rgba(42, 42, 42, 0.2)',
+              opacity: 1
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Terminal Header */}
+            <div 
+              className="px-4 py-3 rounded-t-lg flex items-center justify-between"
+              style={{ backgroundColor: '#2a2a2a', color: '#fdfaf5' }}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#ff5f56]"></div>
+                <div className="w-3 h-3 rounded-full bg-[#ffbd2e]"></div>
+                <div className="w-3 h-3 rounded-full bg-[#27c93f]"></div>
+                <span className="ml-3 text-sm opacity-70">publish_prompts.sh</span>
+              </div>
+              <button
+                onClick={() => !isPublishing && setShowPublishDialog(false)}
+                disabled={isPublishing}
+                className="text-[#fdfaf5]/50 hover:text-[#fdfaf5] transition-colors text-sm disabled:opacity-30"
+              >
+                [ESC]
+              </button>
+            </div>
+
+            {/* Terminal Body */}
+            <div className="p-6 space-y-4" style={{ color: '#2a2a2a', backgroundColor: '#fdfaf5' }}>
+              {/* Info Line */}
+              <div className="text-sm opacity-60 mb-4">
+                <span className="text-[#bfa67a]">📧</span> Publishing Week {space?.current_week} prompts
+              </div>
+
+              {/* Recipients */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-[#bfa67a]">&gt;</span>
+                  <span className="opacity-70">Recipients: {space?.member_count} members</span>
+                </div>
+              </div>
+
+              {/* Prompts List */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-[#bfa67a]">&gt;</span>
+                  <span className="opacity-70">Prompts to publish:</span>
+                </div>
+                <div className="ml-4 p-3 bg-[#2a2a2a]/5 border border-[#2a2a2a]/10 rounded max-h-48 overflow-y-auto space-y-2">
+                  {prompts.map((prompt, index) => (
+                    <p key={prompt.id} className="text-xs">
+                      {index + 1}. {prompt.question}
+                    </p>
+                  ))}
+                </div>
+              </div>
+
+              {/* Info Message */}
+              <div className="ml-4 p-3 bg-[#bfa67a]/10 border border-[#bfa67a]/20 rounded">
+                <p className="text-xs text-[#2a2a2a]/70">
+                  Members will receive an email notification with all prompts and can start submitting their responses.
+                </p>
+              </div>
+
+              {/* Status Messages */}
+              {isPublishing && (
+                <div className="pt-2 text-sm text-[#bfa67a]">
+                  <div className="flex items-center gap-2">
+                    <span className="animate-pulse">●</span>
+                    <span>Sending notifications...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Command Buttons */}
+              {!isPublishing && (
+                <div className="pt-4 flex gap-3">
+                  <button
+                    onClick={() => setShowPublishDialog(false)}
+                    className="flex-1 px-4 py-2 text-sm border border-[#2a2a2a]/30 rounded hover:border-[#2a2a2a] transition-colors"
+                  >
+                    [ESC] Cancel
+                  </button>
+                  <button
+                    onClick={handlePublishPrompts}
+                    className="flex-1 px-4 py-2 text-sm bg-[#bfa67a] text-[#fdfaf5] rounded hover:bg-[#bfa67a]/90 transition-colors"
+                  >
+                    <span className="text-[#fdfaf5]">&gt;</span> run publish_prompts
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 }

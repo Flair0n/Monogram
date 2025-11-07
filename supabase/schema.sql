@@ -18,7 +18,16 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   avatar_url TEXT,
-  role TEXT NOT NULL DEFAULT 'free' CHECK (role IN ('free', 'premium', 'admin')),
+  role TEXT NOT NULL DEFAULT 'FREE' CHECK (role IN ('FREE', 'PREMIUM', 'ADMIN')),
+  
+  -- Phase 1: Gamification fields
+  token_balance INTEGER NOT NULL DEFAULT 0,
+  current_streak INTEGER NOT NULL DEFAULT 0,
+  longest_streak INTEGER NOT NULL DEFAULT 0,
+  last_active_date DATE,
+  total_responses INTEGER NOT NULL DEFAULT 0,
+  total_curations INTEGER NOT NULL DEFAULT 0,
+  
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -27,11 +36,19 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS spaces (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
-  description TEXT NOT NULL,
-  creator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  access_type TEXT NOT NULL DEFAULT 'Public' CHECK (access_type IN ('Public', 'Private')),
+  description TEXT,
+  leader_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  access_type TEXT NOT NULL DEFAULT 'PUBLIC' CHECK (access_type IN ('PUBLIC', 'PRIVATE')),
   current_week INTEGER NOT NULL DEFAULT 1,
   current_curator_id UUID REFERENCES users(id),
+  
+  -- Curator rotation settings
+  rotation_type TEXT NOT NULL DEFAULT 'ROUND_ROBIN' CHECK (rotation_type IN ('ROUND_ROBIN', 'MANUAL', 'RANDOM')),
+  
+  -- Newsletter settings
+  publish_day INTEGER NOT NULL DEFAULT 0, -- 0 = Sunday, 6 = Saturday
+  is_published BOOLEAN NOT NULL DEFAULT false,
+  
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -41,8 +58,15 @@ CREATE TABLE IF NOT EXISTS memberships (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   space_id UUID NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('member', 'curator', 'admin')),
+  role TEXT NOT NULL DEFAULT 'MEMBER' CHECK (role IN ('MEMBER', 'CURATOR', 'ADMIN')),
+  
+  -- Participation tracking
+  weekly_streak INTEGER NOT NULL DEFAULT 0,
+  total_submissions INTEGER NOT NULL DEFAULT 0,
+  
   joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  last_submitted_at TIMESTAMP WITH TIME ZONE,
+  
   UNIQUE(space_id, user_id)
 );
 
@@ -52,9 +76,21 @@ CREATE TABLE IF NOT EXISTS prompts (
   space_id UUID NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
   curator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   week_number INTEGER NOT NULL,
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  
+  -- Prompt content
+  question TEXT NOT NULL,
+  "order" INTEGER NOT NULL DEFAULT 0, -- Order within the week (1-10)
+  
+  -- Media attachments
+  image_url TEXT,
+  music_url TEXT, -- Spotify/Apple Music link
+  media_type TEXT CHECK (media_type IN ('IMAGE', 'MUSIC', 'VIDEO')),
+  
+  is_published BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  UNIQUE(space_id, week_number, "order")
 );
 
 -- Responses table
@@ -62,20 +98,42 @@ CREATE TABLE IF NOT EXISTS responses (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   prompt_id UUID NOT NULL REFERENCES prompts(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  
+  -- Response content
   content TEXT NOT NULL,
+  image_url TEXT,
+  music_url TEXT,
+  
   is_draft BOOLEAN NOT NULL DEFAULT true,
+  is_selected BOOLEAN NOT NULL DEFAULT false, -- Selected for newsletter
+  
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  UNIQUE(prompt_id, user_id)
 );
 
 -- Settings table
 CREATE TABLE IF NOT EXISTS settings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-  theme TEXT NOT NULL DEFAULT 'light' CHECK (theme IN ('light', 'dark', 'system')),
+  
+  -- Display preferences
+  theme TEXT NOT NULL DEFAULT 'LIGHT' CHECK (theme IN ('LIGHT', 'DARK', 'SYSTEM')),
+  landing_page TEXT NOT NULL DEFAULT 'DASHBOARD' CHECK (landing_page IN ('DASHBOARD', 'LAST_SPACE')),
+  profile_visibility TEXT NOT NULL DEFAULT 'SPACES' CHECK (profile_visibility IN ('PUBLIC', 'SPACES', 'PRIVATE')),
+  
+  -- Notifications
   email_notifications BOOLEAN NOT NULL DEFAULT true,
-  landing_page TEXT NOT NULL DEFAULT 'dashboard' CHECK (landing_page IN ('dashboard', 'last-space')),
-  profile_visibility TEXT NOT NULL DEFAULT 'spaces' CHECK (profile_visibility IN ('public', 'spaces', 'private')),
+  weekly_reminders BOOLEAN NOT NULL DEFAULT true,
+  curator_notifications BOOLEAN NOT NULL DEFAULT true,
+  badge_notifications BOOLEAN NOT NULL DEFAULT true,
+  
+  -- Phase 1: Customization
+  active_theme_id UUID,
+  typewriter_sound BOOLEAN NOT NULL DEFAULT false,
+  custom_css_url TEXT,
+  
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -84,16 +142,21 @@ CREATE TABLE IF NOT EXISTS settings (
 -- INDEXES
 -- ================================================
 
-CREATE INDEX IF NOT EXISTS idx_spaces_creator ON spaces(creator_id);
+CREATE INDEX IF NOT EXISTS idx_spaces_leader ON spaces(leader_id);
 CREATE INDEX IF NOT EXISTS idx_spaces_access ON spaces(access_type);
+CREATE INDEX IF NOT EXISTS idx_spaces_current_week ON spaces(current_week);
 CREATE INDEX IF NOT EXISTS idx_memberships_space ON memberships(space_id);
 CREATE INDEX IF NOT EXISTS idx_memberships_user ON memberships(user_id);
 CREATE INDEX IF NOT EXISTS idx_prompts_space ON prompts(space_id);
 CREATE INDEX IF NOT EXISTS idx_prompts_week ON prompts(week_number);
+CREATE INDEX IF NOT EXISTS idx_prompts_curator ON prompts(curator_id);
+CREATE INDEX IF NOT EXISTS idx_prompts_published ON prompts(is_published);
 CREATE INDEX IF NOT EXISTS idx_responses_prompt ON responses(prompt_id);
 CREATE INDEX IF NOT EXISTS idx_responses_user ON responses(user_id);
 CREATE INDEX IF NOT EXISTS idx_responses_draft ON responses(is_draft);
 CREATE INDEX IF NOT EXISTS idx_settings_user ON settings(user_id);
+CREATE INDEX IF NOT EXISTS idx_users_token_balance ON users(token_balance);
+CREATE INDEX IF NOT EXISTS idx_users_current_streak ON users(current_streak);
 
 -- ================================================
 -- ROW LEVEL SECURITY (RLS)
